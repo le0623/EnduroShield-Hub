@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { generateRAGAnswer } from '@/lib/rag/rag';
+import { checkBalance } from '@/lib/billing';
 
 // GET /api/conversations/[conversationId]/messages - Get all messages in a conversation
 export async function GET(
@@ -177,6 +178,54 @@ export async function POST(
           createdAt: assistantMessage.createdAt,
         },
       });
+    }
+
+    // Check tenant balance before processing
+    const { hasBalance, balance } = await checkBalance(tenant.id);
+    if (!hasBalance) {
+      // Save user message
+      const userMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'USER',
+          content: content.trim(),
+        },
+      });
+
+      // Save assistant response about insufficient balance
+      const assistantMessage = await prisma.message.create({
+        data: {
+          conversationId,
+          role: 'ASSISTANT',
+          content: '⚠️ Insufficient balance. Your account balance has been depleted. Please contact your administrator to add credits and continue using the AI search service.',
+        },
+      });
+
+      // Update conversation updatedAt
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      });
+
+      return NextResponse.json({
+        userMessage: {
+          id: userMessage.id,
+          role: userMessage.role,
+          content: userMessage.content,
+          createdAt: userMessage.createdAt,
+        },
+        assistantMessage: {
+          id: assistantMessage.id,
+          role: assistantMessage.role,
+          content: assistantMessage.content,
+          createdAt: assistantMessage.createdAt,
+        },
+        error: {
+          code: 'INSUFFICIENT_BALANCE',
+          message: 'Insufficient balance. Please add credits to continue.',
+          balance: balance,
+        },
+      }, { status: 402 });
     }
 
     // Get conversation history for context

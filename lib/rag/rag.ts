@@ -1,31 +1,70 @@
 import OpenAI from 'openai';
 import { retrieveRelevantChunks, buildContextFromChunks } from './retrieval';
+import { trackTokenUsage, checkBalance } from '../billing';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+export interface RAGResponse {
+  answer: string;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    cost: number;
+  };
+}
+
 /**
  * Generate an answer using RAG (Retrieval-Augmented Generation)
  * @param userId Optional: if provided, filters chunks by user's access tags
+ * @param skipBalanceCheck Optional: if true, skips balance check (for widget/internal use)
  */
 export async function generateRAGAnswer(
   query: string,
   tenantId: string,
   conversationHistory: Array<{ role: 'USER' | 'ASSISTANT'; content: string }> = [],
-  userId?: string
+  userId?: string,
+  skipBalanceCheck: boolean = false
 ): Promise<string> {
+  const response = await generateRAGAnswerWithUsage(query, tenantId, conversationHistory, userId, skipBalanceCheck);
+  return response.answer;
+}
+
+/**
+ * Generate an answer using RAG with detailed usage info
+ * @param userId Optional: if provided, filters chunks by user's access tags
+ * @param skipBalanceCheck Optional: if true, skips balance check (for widget/internal use)
+ */
+export async function generateRAGAnswerWithUsage(
+  query: string,
+  tenantId: string,
+  conversationHistory: Array<{ role: 'USER' | 'ASSISTANT'; content: string }> = [],
+  userId?: string,
+  skipBalanceCheck: boolean = false
+): Promise<RAGResponse> {
   try {
     if (!process.env.OPENAI_API_KEY) {
       throw new Error('OpenAI API key is not configured');
+    }
+
+    // Check balance before processing (unless skipped)
+    if (!skipBalanceCheck) {
+      const { hasBalance, balance } = await checkBalance(tenantId);
+      if (!hasBalance) {
+        throw new Error(`INSUFFICIENT_BALANCE:${balance}`);
+      }
     }
 
     // Retrieve relevant chunks (filtered by user tags if userId provided)
     const relevantChunks = await retrieveRelevantChunks(query, tenantId, 5, userId);
 
     if (relevantChunks.length === 0) {
-      return 'I could not find any relevant information in the knowledge base to answer your question. Please make sure documents have been uploaded and approved.';
+      return {
+        answer: 'I could not find any relevant information in the knowledge base to answer your question. Please make sure documents have been uploaded and approved.',
+      };
     }
 
     // Build context from chunks
@@ -58,15 +97,40 @@ ${context}`,
       },
     ];
 
+    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
     // Generate answer using GPT
     const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      model,
       messages,
       temperature: 0.7,
       max_tokens: 1000,
     });
 
-    return completion.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
+    const answer = completion.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
+
+    // Track token usage if available
+    let usageInfo: RAGResponse['usage'];
+    if (completion.usage) {
+      const { prompt_tokens, completion_tokens, total_tokens } = completion.usage;
+      
+      const { cost } = await trackTokenUsage(
+        tenantId,
+        model,
+        prompt_tokens,
+        completion_tokens,
+        'OpenAI'
+      );
+
+      usageInfo = {
+        promptTokens: prompt_tokens,
+        completionTokens: completion_tokens,
+        totalTokens: total_tokens,
+        cost,
+      };
+    }
+
+    return { answer, usage: usageInfo };
   } catch (error) {
     console.error('Error generating RAG answer:', error);
     throw error;

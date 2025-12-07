@@ -72,6 +72,10 @@ model Tenant {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  // Billing - Token balance in dollars
+  balance     Float    @default(10.0) // Starting balance in $ (can add credits)
+  totalSpent  Float    @default(0) @map("total_spent") // Total spent all time in $
+
   // Relationships
   members       TenantMember[]
   invitations   UserInvitation[]
@@ -80,6 +84,7 @@ model Tenant {
   apiKeys       ApiKey[]
   tags           Tag[] // Access control tags/departments
   widget         Widget? // Widget configuration
+  tokenUsage    TokenUsage[] // Detailed token usage tracking
 
   @@map("tenants")
 }
@@ -286,4 +291,54 @@ model Tag {
   @@unique([tenantId, name])
   @@index([tenantId])
   @@map("tags")
+}
+
+// Token usage tracking for billing
+model TokenUsage {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  date            DateTime @db.Date // Date for daily aggregation
+  model           String   // Model used (e.g., "gpt-4o-mini", "text-embedding-3-small")
+  provider        String   @default("OpenAI") // AI Provider
+  promptTokens    Int      @default(0) @map("prompt_tokens")
+  completionTokens Int     @default(0) @map("completion_tokens")
+  totalTokens     Int      @default(0) @map("total_tokens")
+  cost            Float    @default(0) // Cost in $ for this usage
+  requestCount    Int      @default(0) @map("request_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, date, model])
+  @@index([tenantId, date])
+  @@map("token_usage")
+}
+
+// Billing transactions (top-ups, charges, refunds)
+model BillingTransaction {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  type        TransactionType
+  amount      Float    // Amount in $
+  description String?
+  status      TransactionStatus @default(COMPLETED)
+  reference   String?  // External reference (e.g., Stripe payment ID)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@map("billing_transactions")
+}
+
+enum TransactionType {
+  TOP_UP      // Adding credits
+  CHARGE      // Usage charge
+  REFUND      // Refund
+  ADJUSTMENT  // Manual adjustment
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
 }

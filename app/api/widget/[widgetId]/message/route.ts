@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateRAGAnswer } from '@/lib/rag/rag';
+import { checkBalance } from '@/lib/billing';
 
 // POST /api/widget/[widgetId]/message - Send a message via widget
 export async function POST(
@@ -111,13 +112,19 @@ export async function POST(
     if (approvedDocumentsCount === 0) {
       assistantResponse = 'No knowledge base initialized. Please upload and approve documents first to enable AI-powered responses.';
     } else {
-      // Generate answer using RAG (no userId for widget - public access)
-      assistantResponse = await generateRAGAnswer(
-        content.trim(),
-        widget.tenantId,
-        conversationHistory
-        // No userId - widget has public access to all approved documents
-      );
+      // Check tenant balance before processing
+      const { hasBalance } = await checkBalance(widget.tenantId);
+      if (!hasBalance) {
+        assistantResponse = '⚠️ Service temporarily unavailable. Please contact the administrator.';
+      } else {
+        // Generate answer using RAG (no userId for widget - public access)
+        assistantResponse = await generateRAGAnswer(
+          content.trim(),
+          widget.tenantId,
+          conversationHistory
+          // No userId - widget has public access to all approved documents
+        );
+      }
     }
 
     // Save user message

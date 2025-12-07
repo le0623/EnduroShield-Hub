@@ -1,96 +1,190 @@
 "use client";
 
-type PaymentStatus = "Paid" | "Pending" | "Failed" | "Processing";
+import { useBillingHistory } from "@/lib/hooks/useQueries";
 
-interface Invoice {
-  name: string;
-  paid: PaymentStatus;
-  date: string;
-  cost: number;
-}
+type TransactionStatus = "COMPLETED" | "PENDING" | "FAILED";
+type TransactionType = "TOP_UP" | "CHARGE" | "REFUND" | "ADJUSTMENT";
 
-const invoices: Invoice[] = [
-  { name: "Invoice #INV-2024-001", paid: "Paid", date: "March 2024", cost: 127.45 },
-  { name: "Invoice #INV-2024-002", paid: "Pending", date: "April 2024", cost: 80.95 },
-  { name: "Invoice #INV-2024-003", paid: "Failed", date: "May 2024", cost: 48.9 },
-  { name: "Invoice #INV-2024-004", paid: "Processing", date: "June 2024", cost: 60.0 },
-];
-
-// ✅ Helper: return Tailwind color classes + icon path
-const getPaymentStyle = (status: PaymentStatus) => {
+// Helper: return Tailwind color classes + icon path based on status
+const getStatusStyle = (status: TransactionStatus) => {
   switch (status) {
-    case "Paid":
+    case "COMPLETED":
       return {
         color: "bg-green-500 border-green-600 text-white [&_img]:icon-white",
         icon: "/images/icons/check-circle.svg",
+        label: "Completed",
       };
-    case "Pending":
+    case "PENDING":
       return {
         color: "bg-yellow-400 border-yellow-500 text-white [&_img]:icon-white",
         icon: "/images/icons/clock.svg",
+        label: "Pending",
       };
-    case "Failed":
+    case "FAILED":
       return {
         color: "bg-red-500 border-red-600 text-white [&_img]:icon-white",
         icon: "/images/icons/close.svg",
-      };
-    case "Processing":
-      return {
-        color: "bg-blue-500 border-blue-600 text-white [&_img]:icon-white",
-        icon: "/images/icons/clock.svg",
+        label: "Failed",
       };
     default:
       return {
         color: "bg-gray-400 border-gray-400 text-white [&_img]:icon-white",
-        icon: "/images/icons/processing.svg",
+        icon: "/images/icons/clock.svg",
+        label: status,
       };
   }
 };
 
+// Helper: get icon and color for transaction type
+const getTypeStyle = (type: TransactionType) => {
+  switch (type) {
+    case "TOP_UP":
+      return { prefix: "+", color: "text-green-600" };
+    case "CHARGE":
+      return { prefix: "-", color: "text-red-600" };
+    case "REFUND":
+      return { prefix: "+", color: "text-blue-600" };
+    case "ADJUSTMENT":
+      return { prefix: "", color: "text-gray-600" };
+    default:
+      return { prefix: "", color: "text-gray-600" };
+  }
+};
+
+function formatCurrency(amount: number): string {
+  return `$${Math.abs(amount).toFixed(2)}`;
+}
+
 export default function BillingHistory() {
+  const { data: historyData, isLoading, error } = useBillingHistory();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12 text-red-500">
+        Failed to load billing history
+      </div>
+    );
+  }
+
+  const transactions = historyData?.transactions || [];
+  const monthlyUsage = historyData?.monthlyUsage || [];
+
+  // If no data yet, show empty state
+  if (transactions.length === 0 && monthlyUsage.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <img
+          src="/images/icons/receipt-empty.svg"
+          alt="No history"
+          className="w-16 h-16 mx-auto mb-4 opacity-50"
+        />
+        <h3 className="text-lg font-semibold text-gray-600">No billing history yet</h3>
+        <p className="text-sm text-gray-500 mt-1">
+          Transactions will appear here once you start using the service or add credits
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
+      {/* Monthly Usage Summary */}
+      {monthlyUsage.length > 0 && (
+        <div className="space-y-4">
+          <div>
+            <h3 className="xl:text-xl text-lg font-bold text-secondary-700">
+              Monthly Usage Summary
+            </h3>
+            <p className="text-sm font-medium text-gray-500">
+              Usage breakdown by month
+            </p>
+          </div>
 
-      {/* Usage by Model */}
-      <div className="space-y-4">
-        <div>
-          <h3 className="xl:text-xl text-lg font-bold text-secondary-700">
-            Payment History
-          </h3>
-          <p className="text-sm font-medium text-gray-500">
-            Recent charges and invoices
-          </p>
-        </div>
-
-        <div className="flex flex-wrap divide-y divide-gray-200">
-          {invoices.map((invoice) => {
-            const { color, icon } = getPaymentStyle(invoice.paid);
-            return (
-              <div key={invoice.name} className="w-full">
-                <div className="py-4 flex flex-wrap justify-between items-center gap-3">
-                  {/* Left side */}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold">{invoice.name}</h4>
-                      <span
-                        className={`pl-1 py-1 pr-2 inline-flex items-center gap-1 text-xs font-semibold rounded-full border text-nowrap ${color}`}
-                      >
-                        <img src={icon} alt={invoice.paid} width={16} height={16} />
-                        {invoice.paid}
-                      </span>
-                    </div>
-                    <span className="text-xs font-medium text-gray-400">{invoice.date}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {monthlyUsage.slice(0, 6).map((month) => (
+              <div key={month.month} className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                <h4 className="font-bold text-gray-700">{month.month}</h4>
+                <div className="mt-2 space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Cost:</span>
+                    <span className="font-semibold">{formatCurrency(month.cost)}</span>
                   </div>
-
-                  {/* Right side */}
-                  <div className="inline-flex gap-1">
-                    <p className="text-xl font-bold">${invoice.cost.toFixed(2)}</p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Requests:</span>
+                    <span className="font-semibold">{month.requests.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Tokens:</span>
+                    <span className="font-semibold">{month.tokens.toLocaleString()}</span>
                   </div>
                 </div>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
+      )}
+
+      {/* Transaction History */}
+      <div className="space-y-4">
+        <div>
+          <h3 className="xl:text-xl text-lg font-bold text-secondary-700">
+            Transaction History
+          </h3>
+          <p className="text-sm font-medium text-gray-500">
+            Recent credits and charges
+          </p>
+        </div>
+
+        {transactions.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No transactions yet
+          </div>
+        ) : (
+          <div className="flex flex-wrap divide-y divide-gray-200">
+            {transactions.map((transaction) => {
+              const { color, icon, label } = getStatusStyle(transaction.status as TransactionStatus);
+              const { prefix, color: amountColor } = getTypeStyle(transaction.type as TransactionType);
+              
+              return (
+                <div key={transaction.id} className="w-full">
+                  <div className="py-4 flex flex-wrap justify-between items-center gap-3">
+                    {/* Left side */}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold">{transaction.name}</h4>
+                        <span
+                          className={`pl-1 py-1 pr-2 inline-flex items-center gap-1 text-xs font-semibold rounded-full border text-nowrap ${color}`}
+                        >
+                          <img src={icon} alt={label} width={16} height={16} />
+                          {label}
+                        </span>
+                      </div>
+                      <span className="text-xs font-medium text-gray-400">
+                        {transaction.formattedDate}
+                        {transaction.description && ` • ${transaction.description}`}
+                      </span>
+                    </div>
+
+                    {/* Right side */}
+                    <div className="inline-flex gap-1">
+                      <p className={`text-xl font-bold ${amountColor}`}>
+                        {prefix}{formatCurrency(transaction.amount)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, BillingOverview, BillingHistory, Balance } from '@/lib/api';
 import { CurrentUser, CurrentTenant } from '@/lib/auth';
 
 // Query Keys
@@ -11,6 +11,9 @@ export const queryKeys = {
   tenantUsers: ['tenantUsers'] as const,
   userStats: ['userStats'] as const,
   dashboardData: ['dashboardData'] as const,
+  billingOverview: ['billingOverview'] as const,
+  billingHistory: ['billingHistory'] as const,
+  balance: ['balance'] as const,
 } as const;
 
 // Custom Query Hooks
@@ -86,4 +89,45 @@ export function useAuthData() {
       tenantQuery.refetch();
     },
   };
+}
+
+// Billing Query Hooks
+export function useBillingOverview() {
+  return useQuery<BillingOverview>({
+    queryKey: queryKeys.billingOverview,
+    queryFn: api.getBillingOverview,
+    staleTime: 1000 * 60 * 2, // 2 minutes
+  });
+}
+
+export function useBillingHistory() {
+  return useQuery<BillingHistory>({
+    queryKey: queryKeys.billingHistory,
+    queryFn: api.getBillingHistory,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}
+
+export function useBalance() {
+  return useQuery<Balance>({
+    queryKey: queryKeys.balance,
+    queryFn: api.getBalance,
+    staleTime: 1000 * 60 * 1, // 1 minute
+  });
+}
+
+// Add credits mutation
+export function useAddCredits() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ amount, reference }: { amount: number; reference?: string }) => 
+      api.addCredits(amount, reference),
+    onSuccess: () => {
+      // Invalidate billing queries to refresh data
+      queryClient.invalidateQueries({ queryKey: queryKeys.balance });
+      queryClient.invalidateQueries({ queryKey: queryKeys.billingOverview });
+      queryClient.invalidateQueries({ queryKey: queryKeys.billingHistory });
+    },
+  });
 }

@@ -1,6 +1,63 @@
 import { prisma } from './prisma';
 import { requireTenant, getCurrentUser } from './auth';
 
+// Billing data types
+export interface BillingOverview {
+  balance: number;
+  totalSpent: number;
+  currentMonth: {
+    cost: number;
+    tokens: number;
+    requests: number;
+    costChange: number;
+    tokenChange: number;
+    requestChange: number;
+    estimatedMonthEnd: number;
+  };
+  usageByModel: Array<{
+    model: string;
+    provider: string;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    cost: number;
+    requestCount: number;
+  }>;
+  usageByProvider: Array<{
+    provider: string;
+    totalTokens: number;
+    cost: number;
+    requestCount: number;
+    models: string[];
+  }>;
+}
+
+export interface BillingHistory {
+  transactions: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    type: string;
+    amount: number;
+    status: string;
+    reference: string | null;
+    date: string;
+    formattedDate: string;
+  }>;
+  monthlyUsage: Array<{
+    month: string;
+    cost: number;
+    tokens: number;
+    requests: number;
+  }>;
+}
+
+export interface Balance {
+  balance: number;
+  totalSpent: number;
+  hasInsufficientBalance: boolean;
+}
+
 // API Client functions for data fetching
 export const api = {
   // User related queries
@@ -87,5 +144,42 @@ export const api = {
       tenant,
       stats: userStats,
     };
+  },
+
+  // Billing related queries (client-side fetch)
+  async getBillingOverview(): Promise<BillingOverview> {
+    const response = await fetch('/api/billing');
+    if (!response.ok) {
+      throw new Error('Failed to fetch billing data');
+    }
+    return response.json();
+  },
+
+  async getBillingHistory(): Promise<BillingHistory> {
+    const response = await fetch('/api/billing/history');
+    if (!response.ok) {
+      throw new Error('Failed to fetch billing history');
+    }
+    return response.json();
+  },
+
+  async getBalance(): Promise<Balance> {
+    const response = await fetch('/api/billing/balance');
+    if (!response.ok) {
+      throw new Error('Failed to fetch balance');
+    }
+    return response.json();
+  },
+
+  async addCredits(amount: number, reference?: string): Promise<{ balance: number; message: string }> {
+    const response = await fetch('/api/billing/balance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount, reference }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to add credits');
+    }
+    return response.json();
   },
 };

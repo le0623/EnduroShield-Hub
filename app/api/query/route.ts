@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { extractSubdomain } from '@/lib/subdomain';
 import { prisma } from '@/lib/prisma';
 import { verifyApiKey, isApiKeyExpired, checkDailyLimit, checkMonthlyLimit, trackApiKeyUsage } from '@/lib/api-keys';
-import { generateRAGAnswer } from '@/lib/rag/rag';
+import { generateRAGAnswerWithUsage } from '@/lib/rag/rag';
+import { checkBalance } from '@/lib/billing';
 
 // POST /api/query - Public API for AI-powered search (authenticated by API key)
 export async function POST(request: NextRequest) {
@@ -124,33 +125,62 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check tenant balance before processing
+    const { hasBalance, balance } = await checkBalance(tenant.id);
+    if (!hasBalance) {
+      return NextResponse.json(
+        { 
+          error: 'Insufficient balance. Please add credits to continue using the API.',
+          code: 'INSUFFICIENT_BALANCE',
+          balance: balance,
+        },
+        { status: 402 } // Payment Required
+      );
+    }
+
     // For API keys (not logged-in users), access documents with no access tags (public documents)
     // API keys don't have user tags, so they can only access public documents
     // Note: In the future, API keys could have tags assigned to them for more granular access control
-    const answer = await generateRAGAnswer(
+    const { answer, usage } = await generateRAGAnswerWithUsage(
       query.trim(),
       tenant.id,
       history.map((msg: any) => ({
         role: msg.role === 'user' ? 'USER' : 'ASSISTANT',
         content: msg.content,
       })),
-      undefined // No userId for API keys - they access public documents only
+      undefined, // No userId for API keys - they access public documents only
+      true // Skip balance check since we already checked above
     );
 
-    // Estimate cost (simplified - in production, calculate based on actual token usage)
-    // Using a rough estimate: $0.001 per request (adjust based on your pricing)
-    const estimatedCost = 0.001;
-
-    // Track API key usage
-    await trackApiKeyUsage(matchedApiKey.id, estimatedCost);
+    // Track API key usage with actual cost
+    const actualCost = usage?.cost || 0.001;
+    await trackApiKeyUsage(matchedApiKey.id, actualCost);
 
     return NextResponse.json({
       answer,
       query: query.trim(),
       timestamp: new Date().toISOString(),
+      usage: usage ? {
+        tokens: usage.totalTokens,
+        cost: usage.cost,
+      } : undefined,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in query API:', error);
+    
+    // Handle insufficient balance error from RAG
+    if (error.message?.startsWith('INSUFFICIENT_BALANCE:')) {
+      const balance = parseFloat(error.message.split(':')[1]) || 0;
+      return NextResponse.json(
+        { 
+          error: 'Insufficient balance. Please add credits to continue using the API.',
+          code: 'INSUFFICIENT_BALANCE',
+          balance: balance,
+        },
+        { status: 402 }
+      );
+    }
+    
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
