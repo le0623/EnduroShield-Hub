@@ -1,10 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import UsageDetails from "./components/usage-details";
 import BillingHistory from "./components/billing-history";
 import CostAlerts from "./components/cost-alerts";
+import TopUpDialog from "./components/top-up-dialog";
 import { useBillingOverview, useBalance } from "@/lib/hooks/useQueries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 function formatNumber(num: number): string {
   if (num >= 1000000) {
@@ -23,7 +27,80 @@ function formatCurrency(amount: number): string {
 export default function Billing() {
   const [activeTab, setActiveTab] = useState("usage");
   const { data: billingData, isLoading, error } = useBillingOverview();
-  const { data: balanceData } = useBalance();
+  const { data: balanceData, refetch: refetchBalance } = useBalance();
+  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+
+  const [isVerifying, setIsVerifying] = useState(false);
+  const hasProcessedRef = useRef<string | null>(null);
+
+  // Handle Stripe redirect success/cancel
+  useEffect(() => {
+    const success = searchParams.get("success");
+    const sessionId = searchParams.get("session_id");
+    const canceled = searchParams.get("canceled");
+
+    // Prevent duplicate processing - check if we've already processed this session
+    if (success === "true" && sessionId) {
+      if (hasProcessedRef.current === sessionId) {
+        // Already processed this session, just clean up URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete("success");
+        url.searchParams.delete("session_id");
+        window.history.replaceState({}, "", url.pathname);
+        return;
+      }
+
+      // Mark as processing immediately to prevent race conditions
+      hasProcessedRef.current = sessionId;
+      setIsVerifying(true);
+
+      // Verify the session and process the payment
+      fetch("/api/billing/verify-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.success) {
+            if (data.alreadyProcessed) {
+              toast.success("Payment was already processed. Your balance is up to date.", {
+                duration: 5000,
+              });
+            } else {
+              toast.success(`Payment successful! Added $${data.amount.toFixed(2)} to your balance.`, {
+                duration: 5000,
+              });
+            }
+            // Refresh balance and billing data
+            queryClient.invalidateQueries({ queryKey: ["balance"] });
+            queryClient.invalidateQueries({ queryKey: ["billingOverview"] });
+            queryClient.invalidateQueries({ queryKey: ["billingHistory"] });
+          } else {
+            toast.error(data.error || "Failed to verify payment. Please contact support.");
+          }
+        })
+        .catch((error) => {
+          console.error("Error verifying payment:", error);
+          toast.error("Failed to verify payment. Please refresh the page or contact support.");
+        })
+        .finally(() => {
+          setIsVerifying(false);
+          // Clean up URL params
+          const url = new URL(window.location.href);
+          url.searchParams.delete("success");
+          url.searchParams.delete("session_id");
+          window.history.replaceState({}, "", url.pathname);
+        });
+    } else if (canceled === "true") {
+      toast.info("Payment was canceled. No charges were made.");
+      // Clean up URL params
+      const url = new URL(window.location.href);
+      url.searchParams.delete("canceled");
+      window.history.replaceState({}, "", url.pathname);
+    }
+  }, [searchParams, queryClient]);
 
   const tabs = [
     { id: "usage", label: "Usage Details" },
@@ -64,17 +141,22 @@ export default function Billing() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <div>
+            <div className="flex-1">
               <h3 className="text-red-800 font-bold">Insufficient Balance</h3>
               <p className="text-red-700 text-sm">
                 Your account balance is depleted. AI search services are temporarily disabled. 
                 Please add credits to continue using the service.
               </p>
             </div>
-            <div className="ml-auto">
+            <div className="flex items-center gap-4">
               <span className="text-2xl font-bold text-red-600">
                 {formatCurrency(balanceData?.balance || 0)}
               </span>
+              <TopUpDialog currentBalance={balanceData?.balance || 0}>
+                <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                  Top Up Now
+                </button>
+              </TopUpDialog>
             </div>
           </div>
         </div>
@@ -112,6 +194,7 @@ export default function Billing() {
                         {formatCurrency(balanceData?.balance || 0)}
                       </p>
                     </div>
+                    <TopUpDialog currentBalance={balanceData?.balance || 0} />
                   </div>
                 </div>
               </div>

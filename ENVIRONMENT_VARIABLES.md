@@ -36,6 +36,34 @@ AWS_SECRET_ACCESS_KEY="your-aws-secret-access-key"
 AWS_S3_BUCKET_NAME="your-s3-bucket-name"
 ```
 
+## Stripe Configuration (Required for billing/payments)
+```bash
+# Server-side Stripe secret key (starts with sk_)
+STRIPE_SECRET_KEY="sk_test_your_stripe_secret_key"
+
+# Client-side publishable key (starts with pk_)
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_your_stripe_publishable_key"
+
+# Webhook signing secret (starts with whsec_)
+STRIPE_WEBHOOK_SECRET="whsec_your_webhook_secret"
+```
+
+### Setting up Stripe Webhooks
+
+1. Go to [Stripe Dashboard > Developers > Webhooks](https://dashboard.stripe.com/webhooks)
+2. Click "Add endpoint"
+3. Enter your webhook URL: `https://your-domain.com/api/billing/webhook`
+4. Select events to listen for:
+   - `checkout.session.completed`
+   - `checkout.session.expired`
+   - `payment_intent.payment_failed`
+5. Copy the "Signing secret" and add it to `STRIPE_WEBHOOK_SECRET`
+
+For local development, use the [Stripe CLI](https://stripe.com/docs/stripe-cli):
+```bash
+stripe listen --forward-to localhost:3000/api/billing/webhook
+```
+
 ## Environment
 ```bash
 NODE_ENV="development"

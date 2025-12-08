@@ -322,9 +322,10 @@ model BillingTransaction {
   amount      Float    // Amount in $
   description String?
   status      TransactionStatus @default(COMPLETED)
-  reference   String?  // External reference (e.g., Stripe payment ID)
+  reference   String?  // External reference (e.g., Stripe session ID)
   createdAt   DateTime @default(now()) @map("created_at")
 
+  @@unique([tenantId, reference]) // Prevent duplicate transactions per tenant
   @@index([tenantId])
   @@index([tenantId, createdAt])
   @@map("billing_transactions")

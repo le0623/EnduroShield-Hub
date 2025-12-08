@@ -182,4 +182,17 @@ export const api = {
     }
     return response.json();
   },
+
+  async createCheckoutSession(amount: number): Promise<{ sessionId: string; url: string }> {
+    const response = await fetch('/api/billing/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount }),
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Failed to create checkout session');
+    }
+    return response.json();
+  },
 };
