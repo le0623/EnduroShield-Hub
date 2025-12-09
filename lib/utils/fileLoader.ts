@@ -5,19 +5,29 @@ import https from "https";
 import http from "http";
 import { URL } from "url";
 
+// DOCX MIME types
+const DOCX_MIME_TYPES = [
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/docx',
+];
+
+// DOC MIME type (older format)
+const DOC_MIME_TYPES = [
+  'application/msword',
+];
+
 /**
  * Extract text content from a file URL
- * Supports PDF, TXT, and other text-based formats
+ * Supports PDF, DOCX, DOC, TXT, and other text-based formats
  */
 export async function loadFileText(fileUrl: string, mimeType: string): Promise<string> {
   try {
-    const response = await fetch(fileUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch file: ${response.statusText}`);
-    }
-
     // For text files, return as-is
     if (mimeType.startsWith('text/') || mimeType === 'application/json') {
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.statusText}`);
+      }
       return await response.text();
     }
 
@@ -26,14 +36,66 @@ export async function loadFileText(fileUrl: string, mimeType: string): Promise<s
       return await loadPDFText(fileUrl);
     }
 
-    // For other file types, try to extract text
-    // This is a fallback - you may want to add more specific parsers
+    // For DOCX files, use loadDOCXText
+    if (DOCX_MIME_TYPES.includes(mimeType)) {
+      return await loadDOCXText(fileUrl);
+    }
+
+    // For DOC files (older format), use loadDOCXText (mammoth supports both)
+    if (DOC_MIME_TYPES.includes(mimeType)) {
+      return await loadDOCXText(fileUrl);
+    }
+
+    // For other file types, try to extract text as UTF-8
+    // This is a fallback for plain text files with unknown MIME types
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch file: ${response.statusText}`);
+    }
     const arrayBuffer = await response.arrayBuffer();
     const text = new TextDecoder('utf-8').decode(arrayBuffer);
     return text;
   } catch (error) {
     console.error('Error loading file text:', error);
     throw error;
+  }
+}
+
+/**
+ * Load DOCX/DOC text using mammoth
+ * mammoth extracts text content from Word documents
+ */
+export async function loadDOCXText(fileUrl: string): Promise<string> {
+  try {
+    // Fetch the file
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch DOCX file: ${response.statusText}`);
+    }
+
+    // Get the file as array buffer
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // Dynamically import mammoth
+    const mammoth = await import('mammoth');
+
+    // Extract text from the DOCX file
+    const result = await mammoth.extractRawText({ buffer });
+
+    if (!result.value || result.value.trim() === '') {
+      throw new Error('Failed to extract text from DOCX: No text content found');
+    }
+
+    // Log any warnings
+    if (result.messages && result.messages.length > 0) {
+      console.warn('DOCX parsing warnings:', result.messages);
+    }
+
+    return result.value;
+  } catch (error) {
+    console.error('Error loading DOCX text:', error);
+    throw new Error(`Error loading DOCX: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 

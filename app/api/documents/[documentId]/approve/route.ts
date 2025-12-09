@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { processAndEmbedDocument } from '@/lib/rag/embeddings';
-import { loadFileText, loadPDFText } from '@/lib/utils/fileLoader';
+import { loadFileText, loadPDFText, loadDOCXText } from '@/lib/utils/fileLoader';
+
+// DOCX and DOC MIME types
+const WORD_MIME_TYPES = [
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  'application/docx',
+  'application/msword', // .doc
+];
 
 // POST /api/documents/[documentId]/approve - Approve a document
 export async function POST(
@@ -53,13 +60,25 @@ export async function POST(
 
     // Process and embed document for RAG FIRST (before approval)
     try {
-      // Load document text
+      // Load document text based on file type
       let text: string;
+      
       if (document.mimeType === 'application/pdf') {
+        console.log(`📄 Processing PDF document: ${document.name}`);
         text = await loadPDFText(document.fileUrl);
+      } else if (WORD_MIME_TYPES.includes(document.mimeType)) {
+        console.log(`📝 Processing Word document: ${document.name} (${document.mimeType})`);
+        text = await loadDOCXText(document.fileUrl);
       } else {
+        console.log(`📃 Processing text document: ${document.name} (${document.mimeType})`);
         text = await loadFileText(document.fileUrl, document.mimeType);
       }
+
+      if (!text || text.trim() === '') {
+        throw new Error('No text content could be extracted from the document');
+      }
+
+      console.log(`📊 Extracted ${text.length} characters from document`);
 
       // Process and embed the document
       await processAndEmbedDocument(documentId, text);
