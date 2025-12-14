@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import {
   ArrowUp,
   ArrowDown,
@@ -42,46 +41,15 @@ interface Stats {
 }
 
 export default function DocumentApproval() {
-  const router = useRouter();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [stats, setStats] = useState<Stats>({ pending: 0, reviewing: 0, approved: 0, rejected: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
-  const [isCheckingPermission, setIsCheckingPermission] = useState(true);
-
-  // Check admin permission on mount
-  useEffect(() => {
-    const checkPermission = async () => {
-      try {
-        const response = await fetch('/api/user/membership');
-        if (response.ok) {
-          const data = await response.json();
-          if (!data.isAdmin) {
-            router.push('/dashboard');
-            return;
-          }
-        } else {
-          router.push('/dashboard');
-          return;
-        }
-      } catch (error) {
-        console.error('Failed to check permission:', error);
-        router.push('/dashboard');
-        return;
-      } finally {
-        setIsCheckingPermission(false);
-      }
-    };
-
-    checkPermission();
-  }, [router]);
 
   useEffect(() => {
-    if (!isCheckingPermission) {
-      fetchDocuments();
-    }
-  }, [isCheckingPermission]);
+    fetchDocuments();
+  }, []);
 
   const fetchDocuments = async () => {
     try {
@@ -90,7 +58,7 @@ export default function DocumentApproval() {
       if (response.ok) {
         const data = await response.json();
         setDocuments(data.documents || []);
-        
+
         // Calculate stats
         const pending = data.documents?.filter((doc: Document) => doc.status === 'PENDING').length || 0;
         const approved = data.documents?.filter((doc: Document) => doc.status === 'APPROVED').length || 0;
@@ -155,14 +123,6 @@ export default function DocumentApproval() {
     }
   };
 
-  if (isCheckingPermission) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="w-8 h-8 border-4 border-gray-200 border-t-primary rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -186,102 +146,104 @@ export default function DocumentApproval() {
 
   return (
     <div className="flex flex-col">
-      <div className="flex flex-wrap gap-y-6 -mx-3">
-        {/* Left Section */}
-        <div className="lg:w-3/5 w-full px-3">
-          <div className="h-full p-5 lg:pb-0 relative">
-            {/* Background gradient blobs */}
-            <div className="rounded-xl absolute inset-0 bg-[#e4e4e4] overflow-hidden">
-              <div className="w-[27vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[100px] absolute top-[10vw] right-[10vw] rotate-[37deg] opacity-80"></div>
-              <div className="w-[40vw] h-[18vw] rounded-[50%] bg-[#FEDCB6] blur-[130px] absolute top-[6vw] -right-[15vw] rotate-[50deg]"></div>
-              <div className="w-[17vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[70px] absolute top-[20vw] -right-[10vw] -rotate-[37deg] opacity-80"></div>
-            </div>
+      <div className="flex flex-wrap gap-y-6">
+        <div className="flex lg:flex-row flex-col gap-6 w-full">
+          {/* Left Section */}
+          <div className="lg:w-3/5 w-full">
+            <div className="h-full p-5 lg:pb-0 relative">
+              {/* Background gradient blobs */}
+              <div className="rounded-xl absolute inset-0 bg-[#e4e4e4] overflow-hidden">
+                <div className="w-[27vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[100px] absolute top-[10vw] right-[10vw] rotate-[37deg] opacity-80"></div>
+                <div className="w-[40vw] h-[18vw] rounded-[50%] bg-[#FEDCB6] blur-[130px] absolute top-[6vw] -right-[15vw] rotate-[50deg]"></div>
+                <div className="w-[17vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[70px] absolute top-[20vw] -right-[10vw] -rotate-[37deg] opacity-80"></div>
+              </div>
 
-            {/* Content */}
-            <div className="relative">
-              <div className="flex flex-wrap gap-y-5">
-                <div className="lg:-mt-9 md:w-1/2 md:order-last text-center">
-                  <div className="inline-flex items-center justify-center w-40 h-40 bg-gray-100 rounded-full">
-                    <FileText className="w-20 h-20 text-blue-500" />
+              {/* Content */}
+              <div className="relative">
+                <div className="flex flex-wrap gap-y-5">
+                  <div className="lg:-mt-9 md:w-1/2 md:order-last text-center">
+                    <div className="inline-flex items-center justify-center w-40 h-40 bg-gray-100 rounded-full">
+                      <FileText className="w-20 h-20 text-blue-500" />
+                    </div>
                   </div>
-                </div>
-                <div className="flex flex-col items-start justify-center space-y-5 md:w-1/2 md:order-first">
-                  <h2 className="xl:text-4xl lg:text-3xl md:text-2xl text-xl font-extrabold leading-[1.2]">
-                    Document Approval
-                  </h2>
-                  <p>Review and approve submitted documents</p>
+                  <div className="flex flex-col items-start justify-center space-y-5 md:w-1/2 md:order-first">
+                    <h2 className="xl:text-4xl lg:text-3xl md:text-2xl text-xl font-extrabold leading-[1.2]">
+                      Document Approval
+                    </h2>
+                    <p>Review and approve submitted documents</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Right Section - Stats */}
-        <div className="lg:w-2/5 w-full px-3">
-          <div className="rounded-xl border light-border bg-white h-full p-4">
-            <ul className="flex flex-wrap justify-between items-center sm:[&>*:nth-of-type(2n+1)]:border-r sm:[&>*:not(:nth-last-child(-n+2))]:border-b [&>*]:border-gray-200">
-              {/* Pending */}
-              <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
-                <span className="text-gray-500 text-sm font-medium">
-                  Pending
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
-                    {stats.pending}
+          {/* Right Section - Stats */}
+          <div className="lg:w-2/5 w-full">
+            <div className="rounded-xl border light-border bg-white h-full p-4">
+              <ul className="flex flex-wrap justify-between items-center sm:[&>*:nth-of-type(2n+1)]:border-r sm:[&>*:not(:nth-last-child(-n+2))]:border-b [&>*]:border-gray-200">
+                {/* Pending */}
+                <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
+                  <span className="text-gray-500 text-sm font-medium">
+                    Pending
                   </span>
-                  <span className="text-sm text-green-600 font-bold flex items-center gap-1">
-                    <ArrowUp size={16} /> 0%
-                  </span>
-                </div>
-              </li>
+                  <div className="flex items-center gap-2">
+                    <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
+                      {stats.pending}
+                    </span>
+                    <span className="text-sm text-green-600 font-bold flex items-center gap-1">
+                      <ArrowUp size={16} /> 0%
+                    </span>
+                  </div>
+                </li>
 
-              {/* Reviewing */}
-              <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
-                <span className="text-gray-500 text-sm font-medium">
-                  Approved
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
-                    {stats.approved}
+                {/* Reviewing */}
+                <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
+                  <span className="text-gray-500 text-sm font-medium">
+                    Approved
                   </span>
-                  <span className="text-sm text-green-600 font-bold flex items-center gap-1">
-                    <ArrowUp size={16} /> 0%
-                  </span>
-                </div>
-              </li>
+                  <div className="flex items-center gap-2">
+                    <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
+                      {stats.approved}
+                    </span>
+                    <span className="text-sm text-green-600 font-bold flex items-center gap-1">
+                      <ArrowUp size={16} /> 0%
+                    </span>
+                  </div>
+                </li>
 
-              {/* Approved */}
-              <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
-                <span className="text-gray-500 text-sm font-medium">
-                  Rejected
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
-                    {stats.rejected}
+                {/* Approved */}
+                <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
+                  <span className="text-gray-500 text-sm font-medium">
+                    Rejected
                   </span>
-                  <span className="text-sm text-red-600 font-bold flex items-center gap-1">
-                    <ArrowDown size={16} /> 0%
-                  </span>
-                </div>
-              </li>
+                  <div className="flex items-center gap-2">
+                    <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
+                      {stats.rejected}
+                    </span>
+                    <span className="text-sm text-red-600 font-bold flex items-center gap-1">
+                      <ArrowDown size={16} /> 0%
+                    </span>
+                  </div>
+                </li>
 
-              {/* Total */}
-              <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
-                <span className="text-gray-500 text-sm font-medium">
-                  Total
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
-                    {stats.pending + stats.approved + stats.rejected}
+                {/* Total */}
+                <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
+                  <span className="text-gray-500 text-sm font-medium">
+                    Total
                   </span>
-                </div>
-              </li>
-            </ul>
+                  <div className="flex items-center gap-2">
+                    <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
+                      {stats.pending + stats.approved + stats.rejected}
+                    </span>
+                  </div>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
 
         {/* Table Section */}
-        <div className="w-full px-3">
+        <div className="w-full">
           <div className="rounded-xl border light-border bg-white h-full p-4">
             <div className="flex flex-col items-center gap-3">
               <div className="panel-header w-full flex flex-wrap justify-between items-center gap-3">
@@ -356,10 +318,10 @@ export default function DocumentApproval() {
                             <td className="text-nowrap">
                               <div className="flex items-center gap-1">
                                 {doc.submittedBy.profileImageUrl ? (
-                                  <Image 
-                                    src={doc.submittedBy.profileImageUrl} 
-                                    alt="Author" 
-                                    width={24} 
+                                  <Image
+                                    src={doc.submittedBy.profileImageUrl}
+                                    alt="Author"
+                                    width={24}
                                     height={24}
                                     className="rounded-full"
                                   />

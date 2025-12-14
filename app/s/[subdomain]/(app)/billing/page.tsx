@@ -144,7 +144,7 @@ export default function Billing() {
             <div className="flex-1">
               <h3 className="text-red-800 font-bold">Insufficient Balance</h3>
               <p className="text-red-700 text-sm">
-                Your account balance is depleted. AI search services are temporarily disabled. 
+                Your account balance is depleted. AI search services are temporarily disabled.
                 Please add credits to continue using the service.
               </p>
             </div>
@@ -163,146 +163,148 @@ export default function Billing() {
       )}
 
       {/* Top Section */}
-      <div className="flex flex-wrap gap-y-4 -mx-3">
-        <div className="lg:w-3/5 w-full px-3">
-          <div className="h-full p-5 lg:pb-0 relative">
-            <div className="rounded-xl absolute inset-0 bg-[#e4e4e4] overflow-hidden">
-              <div className="w-[27vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[100px] absolute top-[10vw] right-[10vw] rotate-[37deg] opacity-80"></div>
-              <div className="w-[40vw] h-[18vw] rounded-[50%] bg-[#FEDCB6] blur-[130px] absolute top-[6vw] -right-[15vw] rotate-[50deg]"></div>
-              <div className="w-[17vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[70px] absolute top-[20vw] -right-[10vw] -rotate-[37deg] opacity-80"></div>
-            </div>
-            <div className="relative">
-              <div className="flex flex-wrap gap-y-5">
-                <div className="lg:-mt-9 md:w-1/2 md:order-last text-center">
-                  <img
-                    src="/images/billing-3d.png"
-                    alt=""
-                    className="max-w-full inline-block"
-                  />
-                </div>
-                <div className="flex flex-col items-start justify-center [&_h1_strong]:text-primary-500 space-y-5 md:w-1/2 md:order-first [&_strong]:text-primary-500">
-                  <div>
-                    <h2 className="xl:text-4xl lg:text-3xl md:text-2xl text-xl font-extrabold leading-[1.2]">
-                      Billing & Usage
-                    </h2>
-                    <p>Monitor your AI service costs and usage</p>
+      <div className="flex flex-wrap gap-y-4">
+        <div className="flex lg:flex-row flex-col gap-6 w-full">
+          <div className="lg:w-3/5 w-full">
+            <div className="h-full p-5 lg:pb-0 relative">
+              <div className="rounded-xl absolute inset-0 bg-[#e4e4e4] overflow-hidden">
+                <div className="w-[27vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[100px] absolute top-[10vw] right-[10vw] rotate-[37deg] opacity-80"></div>
+                <div className="w-[40vw] h-[18vw] rounded-[50%] bg-[#FEDCB6] blur-[130px] absolute top-[6vw] -right-[15vw] rotate-[50deg]"></div>
+                <div className="w-[17vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[70px] absolute top-[20vw] -right-[10vw] -rotate-[37deg] opacity-80"></div>
+              </div>
+              <div className="relative">
+                <div className="flex flex-wrap gap-y-5">
+                  <div className="lg:-mt-9 md:w-1/2 md:order-last text-center">
+                    <img
+                      src="/images/billing-3d.png"
+                      alt=""
+                      className="max-w-full inline-block"
+                    />
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="bg-white/90 backdrop-blur px-4 py-2 rounded-lg">
-                      <span className="text-sm text-gray-600">Balance</span>
-                      <p className={`text-xl font-bold ${hasInsufficientBalance ? 'text-red-600' : 'text-green-600'}`}>
-                        {formatCurrency(balanceData?.balance || 0)}
-                      </p>
+                  <div className="flex flex-col items-start justify-center [&_h1_strong]:text-primary-500 space-y-5 md:w-1/2 md:order-first [&_strong]:text-primary-500">
+                    <div>
+                      <h2 className="xl:text-4xl lg:text-3xl md:text-2xl text-xl font-extrabold leading-[1.2]">
+                        Billing & Usage
+                      </h2>
+                      <p>Monitor your AI service costs and usage</p>
                     </div>
-                    <TopUpDialog currentBalance={balanceData?.balance || 0} />
+                    <div className="flex items-center gap-3">
+                      <div className="bg-white/90 backdrop-blur px-4 py-2 rounded-lg">
+                        <span className="text-sm text-gray-600">Balance</span>
+                        <p className={`text-xl font-bold ${hasInsufficientBalance ? 'text-red-600' : 'text-green-600'}`}>
+                          {formatCurrency(balanceData?.balance || 0)}
+                        </p>
+                      </div>
+                      <TopUpDialog currentBalance={balanceData?.balance || 0} />
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Stats Section */}
-        <div className="lg:w-2/5 w-full px-3">
-          <div className="rounded-xl border light-border bg-white h-full p-4">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-              </div>
-            ) : error ? (
-              <div className="flex items-center justify-center h-full text-red-500">
-                Failed to load billing data
-              </div>
-            ) : (
-              <ul className="flex flex-wrap justify-between items-center sm:[&>*:nth-of-type(2n+1)]:border-r sm:[&>*:not(:nth-last-child(-n+2))]:border-b [&>*]:border-gray-200">
-                <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
-                  <span className="text-gray-500 text-sm font-medium">
-                    Current Month
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
-                      {formatCurrency(currentMonthCost)}
+          {/* Stats Section */}
+          <div className="lg:w-2/5 w-full">
+            <div className="rounded-xl border light-border bg-white h-full p-4">
+              {isLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                </div>
+              ) : error ? (
+                <div className="flex items-center justify-center h-full text-red-500">
+                  Failed to load billing data
+                </div>
+              ) : (
+                <ul className="flex flex-wrap justify-between items-center sm:[&>*:nth-of-type(2n+1)]:border-r sm:[&>*:not(:nth-last-child(-n+2))]:border-b [&>*]:border-gray-200">
+                  <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
+                    <span className="text-gray-500 text-sm font-medium">
+                      Current Month
                     </span>
-                    {costChange !== 0 && (
-                      <span className={`text-sm font-bold flex ${costChange > 0 ? 'text-green-600 [&_img]:icon-theme-green-500' : 'text-red-600 [&_img]:icon-red-500'}`}>
-                        <img
-                          src={costChange > 0 ? "/images/icons/arrow-upward.svg" : "/images/icons/arrow-downward.svg"}
-                          alt={costChange > 0 ? "Up" : "Down"}
-                          width="16"
-                        />{" "}
-                        {Math.abs(costChange)}%
+                    <div className="flex items-center gap-2">
+                      <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
+                        {formatCurrency(currentMonthCost)}
                       </span>
-                    )}
-                  </div>
-                </li>
+                      {costChange !== 0 && (
+                        <span className={`text-sm font-bold flex ${costChange > 0 ? 'text-green-600 [&_img]:icon-theme-green-500' : 'text-red-600 [&_img]:icon-red-500'}`}>
+                          <img
+                            src={costChange > 0 ? "/images/icons/arrow-upward.svg" : "/images/icons/arrow-downward.svg"}
+                            alt={costChange > 0 ? "Up" : "Down"}
+                            width="16"
+                          />{" "}
+                          {Math.abs(costChange)}%
+                        </span>
+                      )}
+                    </div>
+                  </li>
 
-                <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
-                  <span className="text-gray-500 text-sm font-medium">
-                    API Calls
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
-                      {formatNumber(totalRequests)}
+                  <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
+                    <span className="text-gray-500 text-sm font-medium">
+                      API Calls
                     </span>
-                    {requestChange !== 0 && (
-                      <span className={`text-sm font-bold flex ${requestChange > 0 ? 'text-green-600 [&_img]:icon-theme-green-500' : 'text-red-600 [&_img]:icon-red-500'}`}>
-                        <img
-                          src={requestChange > 0 ? "/images/icons/arrow-upward.svg" : "/images/icons/arrow-downward.svg"}
-                          alt={requestChange > 0 ? "Up" : "Down"}
-                          width="16"
-                        />{" "}
-                        {Math.abs(requestChange)}%
+                    <div className="flex items-center gap-2">
+                      <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
+                        {formatNumber(totalRequests)}
                       </span>
-                    )}
-                  </div>
-                </li>
+                      {requestChange !== 0 && (
+                        <span className={`text-sm font-bold flex ${requestChange > 0 ? 'text-green-600 [&_img]:icon-theme-green-500' : 'text-red-600 [&_img]:icon-red-500'}`}>
+                          <img
+                            src={requestChange > 0 ? "/images/icons/arrow-upward.svg" : "/images/icons/arrow-downward.svg"}
+                            alt={requestChange > 0 ? "Up" : "Down"}
+                            width="16"
+                          />{" "}
+                          {Math.abs(requestChange)}%
+                        </span>
+                      )}
+                    </div>
+                  </li>
 
-                <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
-                  <span className="text-gray-500 text-sm font-medium">
-                    Tokens Used
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
-                      {formatNumber(totalTokens)}
+                  <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
+                    <span className="text-gray-500 text-sm font-medium">
+                      Tokens Used
                     </span>
-                    {tokenChange !== 0 && (
-                      <span className={`text-sm font-bold flex ${tokenChange > 0 ? 'text-green-600 [&_img]:icon-theme-green-500' : 'text-red-600 [&_img]:icon-red-500'}`}>
-                        <img
-                          src={tokenChange > 0 ? "/images/icons/arrow-upward.svg" : "/images/icons/arrow-downward.svg"}
-                          alt={tokenChange > 0 ? "Up" : "Down"}
-                          width="16"
-                        />{" "}
-                        {Math.abs(tokenChange)}%
+                    <div className="flex items-center gap-2">
+                      <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
+                        {formatNumber(totalTokens)}
                       </span>
-                    )}
-                  </div>
-                </li>
+                      {tokenChange !== 0 && (
+                        <span className={`text-sm font-bold flex ${tokenChange > 0 ? 'text-green-600 [&_img]:icon-theme-green-500' : 'text-red-600 [&_img]:icon-red-500'}`}>
+                          <img
+                            src={tokenChange > 0 ? "/images/icons/arrow-upward.svg" : "/images/icons/arrow-downward.svg"}
+                            alt={tokenChange > 0 ? "Up" : "Down"}
+                            width="16"
+                          />{" "}
+                          {Math.abs(tokenChange)}%
+                        </span>
+                      )}
+                    </div>
+                  </li>
 
-                <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
-                  <span className="text-gray-500 text-sm font-medium">
-                    Est. Month End
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
-                      {formatCurrency(estimatedMonthEnd)}
+                  <li className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start">
+                    <span className="text-gray-500 text-sm font-medium">
+                      Est. Month End
                     </span>
-                  </div>
-                </li>
-              </ul>
-            )}
+                    <div className="flex items-center gap-2">
+                      <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
+                        {formatCurrency(estimatedMonthEnd)}
+                      </span>
+                    </div>
+                  </li>
+                </ul>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Tabs Section */}
-        <div className="w-full px-3 mt-4">
-          <div className="rounded-xl border light-border bg-white h-full p-4">
+        <div className="w-full">
+          <div className="rounded-xl border light-border bg-white h-full">
             {/* Tabs */}
             <ul className="mb-3 nav nav-tabs flex border-b light-border [&>*]:flex-1 [&>*]:nav-item [&>*]:inline-flex [&>*]:justify-center [&>*]:items-center [&>*]:gap-1">
               {tabs.map((tab) => (
                 <li key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`nav-item cursor-pointer ${activeTab === tab.id
-                    ? "active"
+                  className={`nav-item cursor-pointer py-2 ${activeTab === tab.id
+                    ? "border-b-3 border-primary"
                     : ""
                     }`}
                 >
@@ -312,7 +314,7 @@ export default function Billing() {
             </ul>
 
             {/* Tab Content */}
-            <div>{renderTabContent()}</div>
+            <div className="p-4">{renderTabContent()}</div>
           </div>
         </div>
       </div>

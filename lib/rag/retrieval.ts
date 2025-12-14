@@ -33,7 +33,7 @@ export async function retrieveRelevantChunks(
   tenantId: string,
   topK: number = 5,
   userId?: string // Optional: if provided, filter by user tags
-): Promise<Array<{ content: string; documentId: string; documentName: string; chunkIndex: number; similarity: number }>> {
+): Promise<Array<{ content: string; documentId: string; documentName: string; documentUrl: string; chunkIndex: number; similarity: number }>> {
   try {
     // Generate embedding for the query
     const queryEmbedding = await generateEmbedding(query);
@@ -87,6 +87,7 @@ export async function retrieveRelevantChunks(
           select: {
             id: true,
             name: true,
+            fileUrl: true,
           },
         },
       },
@@ -103,6 +104,7 @@ export async function retrieveRelevantChunks(
         content: chunk.content,
         documentId: chunk.documentId,
         documentName: chunk.document.name,
+        documentUrl: chunk.document.fileUrl,
         chunkIndex: chunk.chunkIndex,
         similarity,
       };

@@ -14,6 +14,8 @@ export const queryKeys = {
   billingOverview: ['billingOverview'] as const,
   billingHistory: ['billingHistory'] as const,
   balance: ['balance'] as const,
+  users: ['users'] as const,
+  pendingInvitations: ['pendingInvitations'] as const,
 } as const;
 
 // Custom Query Hooks
@@ -130,4 +132,100 @@ export function useAddCredits() {
       queryClient.invalidateQueries({ queryKey: queryKeys.billingHistory });
     },
   });
+}
+
+// User Management Types
+export interface UserTag {
+  id: string;
+  name: string;
+}
+
+export interface User {
+  id: string;
+  name: string | null;
+  email: string;
+  profileImageUrl: string | null;
+  status: string;
+  lastActive: string;
+  createdAt: string;
+  role: string | null;
+  isOwner: boolean;
+  tags: UserTag[];
+}
+
+export interface Invitation {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  createdAt: string;
+  expiresAt: string;
+  tagIds: string[];
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+}
+
+// User Management Query Hooks
+export function useUsers() {
+  return useQuery<{ users: User[] }>({
+    queryKey: queryKeys.users,
+    queryFn: async () => {
+      const response = await fetch('/api/users');
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 2, // 2 minutes - prevents refetching within this window
+  });
+}
+
+export function usePendingInvitations() {
+  return useQuery<{ invitations: Invitation[] }>({
+    queryKey: queryKeys.pendingInvitations,
+    queryFn: async () => {
+      const response = await fetch('/api/users/invitations?status=PENDING');
+      if (!response.ok) {
+        throw new Error('Failed to fetch invitations');
+      }
+      return response.json();
+    },
+    staleTime: 1000 * 60 * 2, // 2 minutes
+  });
+}
+
+// Computed stats from users and invitations data
+export function useUserManagementStats() {
+  const usersQuery = useUsers();
+  const invitationsQuery = usePendingInvitations();
+
+  const users = usersQuery.data?.users || [];
+  const invitations = invitationsQuery.data?.invitations || [];
+
+  const stats = {
+    total: users.length,
+    active: users.filter((u) => u.status === 'ACTIVE').length,
+    admin: users.filter((u) => u.role === 'ADMIN' || u.isOwner).length,
+    pending: invitations.length,
+  };
+
+  return {
+    stats,
+    isLoading: usersQuery.isLoading || invitationsQuery.isLoading,
+    isError: usersQuery.isError || invitationsQuery.isError,
+    error: usersQuery.error || invitationsQuery.error,
+  };
+}
+
+// Invalidate user management queries
+export function useInvalidateUserManagement() {
+  const queryClient = useQueryClient();
+
+  return () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.users });
+    queryClient.invalidateQueries({ queryKey: queryKeys.pendingInvitations });
+  };
 }

@@ -18,7 +18,8 @@ interface Tag {
   id: string;
   name: string;
   createdAt: string;
-  userCount?: number;
+  userCount: number;
+  documentCount: number;
 }
 
 export default function RolesTab() {
@@ -40,21 +41,8 @@ export default function RolesTab() {
       const response = await fetch("/api/tags");
       if (response.ok) {
         const data = await response.json();
-        // Fetch user count for each tag
-        const tagsWithCounts = await Promise.all(
-          (data.tags || []).map(async (tag: Tag) => {
-            const usersResponse = await fetch(`/api/users`);
-            if (usersResponse.ok) {
-              const usersData = await usersResponse.json();
-              const userCount = (usersData.users || []).filter((user: any) =>
-                user.tags?.some((t: Tag) => t.id === tag.id)
-              ).length;
-              return { ...tag, userCount };
-            }
-            return { ...tag, userCount: 0 };
-          })
-        );
-        setTags(tagsWithCounts);
+        // API now returns tags with userCount and documentCount included
+        setTags(data.tags || []);
       }
     } catch (err) {
       console.error("Failed to fetch tags:", err);

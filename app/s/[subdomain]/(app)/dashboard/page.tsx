@@ -3,8 +3,8 @@
 export default function Overview() {
   return (
     <div className="flex flex-col">
-      <div className="flex flex-wrap gap-y-6 -mx-3">
-        <div className="lg:w-3/5 w-full px-3">
+      <div className="grid lg:grid-cols-12 grid-cols-1 gap-y-6 lg:gap-x-6">
+        <div className="col-span-7">
           <div className="h-full p-5 relative">
             <div className="rounded-xl absolute inset-0 bg-[#e4e4e4] overflow-hidden">
               <div className="w-[27vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[100px] absolute top-[10vw] left-[10vw] rotate-[37deg] opacity-80"></div>
@@ -113,7 +113,7 @@ export default function Overview() {
             </div>
           </div>
         </div>
-        <div className="lg:w-2/5 w-full px-3">
+        <div className="col-span-5">
           <div className="rounded-xl border light-border bg-white h-full p-4">
             <div className="flex flex-col items-center gap-3">
               <div className="panel-header w-full flex justify-between items-center gap-3">
@@ -139,7 +139,7 @@ export default function Overview() {
             </div>
           </div>
         </div>
-        <div className="lg:w-1/2 w-full px-3">
+        <div className="col-span-6">
           <div className="rounded-xl border light-border bg-white h-full p-4">
             <div className="flex flex-col items-center gap-3">
               <div className="panel-header w-full flex flex-wrap justify-between items-center gap-3">
@@ -294,7 +294,7 @@ export default function Overview() {
             </div>
           </div>
         </div>
-        <div className="lg:w-1/2 w-full px-3">
+        <div className="col-span-6">
           <div className="rounded-xl border light-border bg-white h-full p-4">
             <div className="flex flex-col items-center gap-3">
               <div className="panel-header w-full flex flex-wrap justify-between items-center gap-3">

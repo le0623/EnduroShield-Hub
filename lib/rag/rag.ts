@@ -7,8 +7,15 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+export interface RAGSource {
+  documentId: string;
+  documentName: string;
+  documentUrl: string;
+}
+
 export interface RAGResponse {
   answer: string;
+  sources: RAGSource[];
   usage?: {
     promptTokens: number;
     completionTokens: number;
@@ -64,8 +71,22 @@ export async function generateRAGAnswerWithUsage(
     if (relevantChunks.length === 0) {
       return {
         answer: 'I could not find any relevant information in the knowledge base to answer your question. Please make sure documents have been uploaded and approved.',
+        sources: [],
       };
     }
+
+    // Extract unique source documents
+    const sourceMap = new Map<string, RAGSource>();
+    relevantChunks.forEach((chunk) => {
+      if (!sourceMap.has(chunk.documentId)) {
+        sourceMap.set(chunk.documentId, {
+          documentId: chunk.documentId,
+          documentName: chunk.documentName,
+          documentUrl: chunk.documentUrl,
+        });
+      }
+    });
+    const sources = Array.from(sourceMap.values());
 
     // Build context from chunks
     const context = buildContextFromChunks(relevantChunks);
@@ -75,12 +96,20 @@ export async function generateRAGAnswerWithUsage(
       {
         role: 'system',
         content: `You are a helpful AI assistant that answers questions based on the provided document context.
+
+FORMATTING RULES:
+- Use **Markdown formatting** in your responses for better readability
+- Use **bold** for emphasis on important terms
+- Use bullet points or numbered lists when listing multiple items
+- Use headings (## or ###) for sections if the answer is long
+- Use code blocks for any code or technical terms
+- Use paragraphs to separate different ideas
         
 IMPORTANT RULES:
 - Answer questions ONLY using the information provided in the context below
 - If the answer cannot be found in the context, clearly state that you don't have that information
 - Be concise and accurate
-- Cite which document/chunk the information comes from when relevant
+- Do NOT mention chunk numbers or cite specific chunks in your response
 - If asked about something not in the context, politely say you don't have that information
 
 Context from knowledge base:
@@ -130,7 +159,7 @@ ${context}`,
       };
     }
 
-    return { answer, usage: usageInfo };
+    return { answer, sources, usage: usageInfo };
   } catch (error) {
     console.error('Error generating RAG answer:', error);
     throw error;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import {
   DropdownMenu,
@@ -11,53 +11,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { MoreVertical, Edit, Trash2 } from "lucide-react";
-
-interface Tag {
-  id: string;
-  name: string;
-}
-
-interface User {
-  id: string;
-  name: string | null;
-  email: string;
-  profileImageUrl: string | null;
-  status: string;
-  lastActive: string;
-  createdAt: string;
-  role: string | null;
-  isOwner: boolean;
-  tags: Tag[];
-}
+import { useUsers, useInvalidateUserManagement } from "@/lib/hooks/useQueries";
 
 export default function UsersTab() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
   const [processingUserId, setProcessingUserId] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
-    try {
-      setIsLoading(true);
-      setError("");
-      const response = await fetch("/api/users");
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data.users || []);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || "Failed to load users");
-      }
-    } catch (err) {
-      setError("An error occurred while loading users");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  
+  // Use shared React Query hook - data is cached and shared with parent
+  const { data, isLoading, isError, error } = useUsers();
+  const invalidateUserManagement = useInvalidateUserManagement();
+  
+  const users = data?.users || [];
 
   const handleDelete = async (userId: string, userName: string) => {
     if (!confirm(`Are you sure you want to delete ${userName || "this user"}? This action cannot be undone.`)) {
@@ -72,7 +35,7 @@ export default function UsersTab() {
 
       if (response.ok) {
         alert("User deleted successfully!");
-        fetchUsers(); // Refresh the list
+        invalidateUserManagement(); // Refresh the cached data
       } else {
         const errorData = await response.json();
         alert(errorData.error || "Failed to delete user");
@@ -176,10 +139,10 @@ export default function UsersTab() {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="text-center py-10 text-red-600">
-        {error}
+        {error instanceof Error ? error.message : "Failed to load users"}
       </div>
     );
   }

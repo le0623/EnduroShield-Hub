@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { PlusIcon } from "lucide-react";
 
 interface ApiKey {
   id: string;
@@ -36,7 +37,7 @@ interface ApiKey {
 export default function ApiKeyManagement() {
   const params = useParams();
   const subdomain = params?.subdomain as string;
-  
+
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -120,7 +121,7 @@ export default function ApiKeyManagement() {
 
     // Optimistic update for enable/disable
     if (updates.isEnabled !== undefined) {
-      setApiKeys(prev => prev.map(key => 
+      setApiKeys(prev => prev.map(key =>
         key.id === keyId ? { ...key, isEnabled: updates.isEnabled! } : key
       ));
     }
@@ -149,7 +150,7 @@ export default function ApiKeyManagement() {
       } else {
         // Revert optimistic update on error
         if (updates.isEnabled !== undefined) {
-          setApiKeys(prev => prev.map(key => 
+          setApiKeys(prev => prev.map(key =>
             key.id === keyId ? { ...key, isEnabled: !updates.isEnabled! } : key
           ));
         }
@@ -159,7 +160,7 @@ export default function ApiKeyManagement() {
     } catch (err) {
       // Revert optimistic update on error
       if (updates.isEnabled !== undefined) {
-        setApiKeys(prev => prev.map(key => 
+        setApiKeys(prev => prev.map(key =>
           key.id === keyId ? { ...key, isEnabled: !updates.isEnabled! } : key
         ));
       }
@@ -254,291 +255,286 @@ export default function ApiKeyManagement() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-y-6 -mx-3">
-        {/* Left Section */}
-        <div className="lg:w-3/5 w-full px-3">
-          <div className="mb-4 p-5 relative">
-            {/* Background Blobs */}
-            <div className="rounded-xl absolute inset-0 bg-[#e4e4e4] overflow-hidden">
-              <div className="w-[27vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[100px] absolute top-[10vw] right-[10vw] rotate-[37deg] opacity-80"></div>
-              <div className="w-[40vw] h-[18vw] rounded-[50%] bg-[#FEDCB6] blur-[130px] absolute top-[6vw] -right-[15vw] rotate-[50deg]"></div>
-              <div className="w-[17vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[70px] absolute top-[20vw] -right-[10vw] -rotate-[37deg] opacity-80"></div>
-            </div>
+      <div className="flex flex-wrap gap-y-6">
+        <div className="flex lg:flex-row flex-col gap-6 w-full">
+          {/* Left Section */}
+          <div className="lg:w-3/5 w-full">
+            <div className="mb-4 p-5 relative">
+              {/* Background Blobs */}
+              <div className="rounded-xl absolute inset-0 bg-[#e4e4e4] overflow-hidden">
+                <div className="w-[27vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[100px] absolute top-[10vw] right-[10vw] rotate-[37deg] opacity-80"></div>
+                <div className="w-[40vw] h-[18vw] rounded-[50%] bg-[#FEDCB6] blur-[130px] absolute top-[6vw] -right-[15vw] rotate-[50deg]"></div>
+                <div className="w-[17vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[70px] absolute top-[20vw] -right-[10vw] -rotate-[37deg] opacity-80"></div>
+              </div>
 
-            <div className="relative">
-              <div className="flex flex-wrap gap-y-5">
-                <div className="lg:-mt-9 md:w-1/2 md:order-last text-center">
-                  <Image
-                    src="/images/apikey-3d.png"
-                    alt="API Key"
-                    width={300}
-                    height={300}
-                    className="max-w-full inline-block"
-                  />
-                </div>
-
-                <div className="flex flex-col items-start justify-center space-y-5 md:w-1/2 md:order-first">
-                  <div>
-                    <h2 className="xl:text-4xl lg:text-3xl md:text-2xl text-xl font-extrabold leading-[1.2]">
-                      API Key Management
-                    </h2>
-                    <p>Manage API keys for AI-powered search</p>
-                  </div>
-                  <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="btn btn-secondary inline-flex gap-1 justify-start"
-                  >
+              <div className="relative">
+                <div className="flex flex-wrap gap-y-5">
+                  <div className="lg:-mt-9 md:w-1/2 md:order-last text-center">
                     <Image
-                      src="/images/icons/plus.svg"
-                      alt="Add"
-                      width={18}
-                      height={18}
-                    />{" "}
-                    Create API Key
-                  </button>
+                      src="/images/apikey-3d.png"
+                      alt="API Key"
+                      width={300}
+                      height={300}
+                      className="max-w-full inline-block"
+                    />
+                  </div>
+
+                  <div className="flex flex-col items-start justify-center space-y-5 md:w-1/2 md:order-first">
+                    <div>
+                      <h2 className="xl:text-4xl lg:text-3xl md:text-2xl text-xl font-extrabold leading-[1.2]">
+                        API Key Management
+                      </h2>
+                      <p>Manage API keys for AI-powered search</p>
+                    </div>
+                    <Button
+                      onClick={() => setShowCreateModal(true)}
+                      className="flex items-center gap-1"
+                    >
+                      <PlusIcon className="size-4" />
+                      <span>Create API Key</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* API Keys List */}
-          {loading ? (
-            <div className="text-center py-8">Loading...</div>
-          ) : apiKeys.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No API keys found. Create your first API key to get started.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {apiKeys.map((key) => (
-                <div
-                  key={key.id}
-                  className="p-4 rounded-lg border border-gray-200 space-y-4"
-                >
-                  <div className="flex flex-wrap justify-between items-center gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-bold">{key.name}</h4>
-                        <span
-                          className={`px-3 py-1 inline-block text-xs font-semibold text-white rounded-full ${
-                            key.isExpired
-                              ? "bg-red-500"
-                              : !key.isEnabled
-                              ? "bg-gray-500"
-                              : "bg-emerald-500"
-                          }`}
-                        >
-                          {key.isExpired
-                            ? "Expired"
-                            : !key.isEnabled
-                            ? "Disabled"
-                            : "Active"}
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-500 font-mono">
-                        {key.prefix}...
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-3">
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={key.isEnabled}
-                          onCheckedChange={(checked) => {
-                            // Fire and forget - optimistic update handles UI
-                            handleUpdateApiKey(key.id, {
-                              isEnabled: checked,
-                            });
-                          }}
-                          disabled={key.isExpired}
-                        />
-                      </div>
-                      <button
-                        onClick={() => handleDeleteApiKey(key.id)}
-                        className="btn btn-light text-sm text-red-600"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="divide-y divide-gray-200">
-                    <div className="pb-4 space-y-3">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-500">Expires:</span>{" "}
-                          <span className="font-medium">
-                            {formatDate(key.expirationDate)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Last Used:</span>{" "}
-                          <span className="font-medium">
-                            {key.lastUsedAt
-                              ? formatDate(key.lastUsedAt)
-                              : "Never"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="xl:text-lg text-base font-bold text-secondary-700">
-                          Usage Limits
-                        </h3>
-                        {!editingLimits[key.id] && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => startEditingLimits(key.id, key.dailyLimit, key.monthlyLimit)}
+            {/* API Keys List */}
+            {loading ? (
+              <div className="text-center py-8">Loading...</div>
+            ) : apiKeys.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No API keys found. Create your first API key to get started.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {apiKeys.map((key) => (
+                  <div
+                    key={key.id}
+                    className="p-4 rounded-lg border border-gray-200 space-y-4"
+                  >
+                    <div className="flex flex-wrap justify-between items-center gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-bold">{key.name}</h4>
+                          <span
+                            className={`px-3 py-1 inline-block text-xs font-semibold text-white rounded-full ${key.isExpired
+                                ? "bg-red-500"
+                                : !key.isEnabled
+                                  ? "bg-gray-500"
+                                  : "bg-emerald-500"
+                              }`}
                           >
-                            Edit Limits
-                          </Button>
+                            {key.isExpired
+                              ? "Expired"
+                              : !key.isEnabled
+                                ? "Disabled"
+                                : "Active"}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-500 font-mono">
+                          {key.prefix}...
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-3">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={key.isEnabled}
+                            onCheckedChange={(checked) => {
+                              // Fire and forget - optimistic update handles UI
+                              handleUpdateApiKey(key.id, {
+                                isEnabled: checked,
+                              });
+                            }}
+                            disabled={key.isExpired}
+                          />
+                        </div>
+                        <button
+                          onClick={() => handleDeleteApiKey(key.id)}
+                          className="btn btn-light text-sm text-red-600"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="divide-y divide-gray-200">
+                      <div className="pb-4 space-y-3">
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-500">Expires:</span>{" "}
+                            <span className="font-medium">
+                              {formatDate(key.expirationDate)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Last Used:</span>{" "}
+                            <span className="font-medium">
+                              {key.lastUsedAt
+                                ? formatDate(key.lastUsedAt)
+                                : "Never"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="xl:text-lg text-base font-bold text-secondary-700">
+                            Usage Limits
+                          </h3>
+                          {!editingLimits[key.id] && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => startEditingLimits(key.id, key.dailyLimit, key.monthlyLimit)}
+                            >
+                              Edit Limits
+                            </Button>
+                          )}
+                        </div>
+                        {editingLimits[key.id] ? (
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor={`daily-${key.id}`} className="text-sm">
+                                Daily Limit ($)
+                              </Label>
+                              <Input
+                                id={`daily-${key.id}`}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={editingLimits[key.id].dailyLimit}
+                                onChange={(e) =>
+                                  setEditingLimits(prev => ({
+                                    ...prev,
+                                    [key.id]: {
+                                      ...prev[key.id],
+                                      dailyLimit: e.target.value,
+                                    }
+                                  }))
+                                }
+                                placeholder="0 = unlimited"
+                              />
+                              <div className="text-xs text-gray-500">
+                                Used: {formatCurrency(key.dailyCost)} ({key.dailyRequests} requests)
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`monthly-${key.id}`} className="text-sm">
+                                Monthly Limit ($)
+                              </Label>
+                              <Input
+                                id={`monthly-${key.id}`}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={editingLimits[key.id].monthlyLimit}
+                                onChange={(e) =>
+                                  setEditingLimits(prev => ({
+                                    ...prev,
+                                    [key.id]: {
+                                      ...prev[key.id],
+                                      monthlyLimit: e.target.value,
+                                    }
+                                  }))
+                                }
+                                placeholder="0 = unlimited"
+                              />
+                              <div className="text-xs text-gray-500">
+                                Used: {formatCurrency(key.monthlyCost)}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-sm text-gray-500">
+                                Daily Limit
+                              </label>
+                              <div className="text-lg font-semibold">
+                                {key.dailyLimit > 0
+                                  ? formatCurrency(key.dailyLimit)
+                                  : "Unlimited"}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Used: {formatCurrency(key.dailyCost)} (
+                                {key.dailyRequests} requests)
+                              </div>
+                            </div>
+                            <div>
+                              <label className="text-sm text-gray-500">
+                                Monthly Limit
+                              </label>
+                              <div className="text-lg font-semibold">
+                                {key.monthlyLimit > 0
+                                  ? formatCurrency(key.monthlyLimit)
+                                  : "Unlimited"}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Used: {formatCurrency(key.monthlyCost)}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {editingLimits[key.id] && (
+                          <div className="flex gap-2 pt-2">
+                            <Button
+                              size="sm"
+                              onClick={() => saveLimits(key.id)}
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => cancelEditingLimits(key.id)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
                         )}
                       </div>
-                      {editingLimits[key.id] ? (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor={`daily-${key.id}`} className="text-sm">
-                              Daily Limit ($)
-                            </Label>
-                            <Input
-                              id={`daily-${key.id}`}
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={editingLimits[key.id].dailyLimit}
-                              onChange={(e) =>
-                                setEditingLimits(prev => ({
-                                  ...prev,
-                                  [key.id]: {
-                                    ...prev[key.id],
-                                    dailyLimit: e.target.value,
-                                  }
-                                }))
-                              }
-                              placeholder="0 = unlimited"
-                            />
-                            <div className="text-xs text-gray-500">
-                              Used: {formatCurrency(key.dailyCost)} ({key.dailyRequests} requests)
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor={`monthly-${key.id}`} className="text-sm">
-                              Monthly Limit ($)
-                            </Label>
-                            <Input
-                              id={`monthly-${key.id}`}
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={editingLimits[key.id].monthlyLimit}
-                              onChange={(e) =>
-                                setEditingLimits(prev => ({
-                                  ...prev,
-                                  [key.id]: {
-                                    ...prev[key.id],
-                                    monthlyLimit: e.target.value,
-                                  }
-                                }))
-                              }
-                              placeholder="0 = unlimited"
-                            />
-                            <div className="text-xs text-gray-500">
-                              Used: {formatCurrency(key.monthlyCost)}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-sm text-gray-500">
-                              Daily Limit
-                            </label>
-                            <div className="text-lg font-semibold">
-                              {key.dailyLimit > 0
-                                ? formatCurrency(key.dailyLimit)
-                                : "Unlimited"}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              Used: {formatCurrency(key.dailyCost)} (
-                              {key.dailyRequests} requests)
-                            </div>
-                          </div>
-                          <div>
-                            <label className="text-sm text-gray-500">
-                              Monthly Limit
-                            </label>
-                            <div className="text-lg font-semibold">
-                              {key.monthlyLimit > 0
-                                ? formatCurrency(key.monthlyLimit)
-                                : "Unlimited"}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              Used: {formatCurrency(key.monthlyCost)}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      {editingLimits[key.id] && (
-                        <div className="flex gap-2 pt-2">
-                          <Button
-                            size="sm"
-                            onClick={() => saveLimits(key.id)}
-                          >
-                            Save
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => cancelEditingLimits(key.id)}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Right Section - API Documentation */}
-        <div className="lg:w-2/5 w-full px-3">
-          <div className="rounded-xl border light-border bg-white p-4 space-y-5">
-            <div>
-              <h3 className="xl:text-xl text-lg font-bold text-secondary-700">
-                API Documentation
-              </h3>
-              <p className="text-sm font-medium text-gray-500">
-                Use your API keys to access AI-powered search
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-bold mb-2">Endpoint</h4>
-                <code className="block p-2 bg-gray-100 rounded text-sm break-all">
-                  {getApiEndpoint()}
-                </code>
+                ))}
               </div>
+            )}
+          </div>
 
+          {/* Right Section - API Documentation */}
+          <div className="lg:w-2/5 w-full">
+            <div className="rounded-xl border light-border bg-white p-4 space-y-5">
               <div>
-                <h4 className="font-bold mb-2">Authentication</h4>
-                <p className="text-sm text-gray-600 mb-2">
-                  Include your API key in the Authorization header:
+                <h3 className="xl:text-xl text-lg font-bold text-secondary-700">
+                  API Documentation
+                </h3>
+                <p className="text-sm font-medium text-gray-500">
+                  Use your API keys to access AI-powered search
                 </p>
-                <code className="block p-2 bg-gray-100 rounded text-sm">
-                  Authorization: Bearer {"<your_api_key>"}
-                </code>
               </div>
 
-              <div>
-                <h4 className="font-bold mb-2">Request Example</h4>
-                <pre className="p-2 bg-gray-100 rounded text-xs overflow-x-auto">
-                  {`POST /api/query
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-bold mb-2">Endpoint</h4>
+                  <code className="block p-2 bg-gray-100 rounded text-sm break-all">
+                    {getApiEndpoint()}
+                  </code>
+                </div>
+
+                <div>
+                  <h4 className="font-bold mb-2">Authentication</h4>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Include your API key in the Authorization header:
+                  </p>
+                  <code className="block p-2 bg-gray-100 rounded text-sm">
+                    Authorization: Bearer {"<your_api_key>"}
+                  </code>
+                </div>
+
+                <div>
+                  <h4 className="font-bold mb-2">Request Example</h4>
+                  <pre className="p-2 bg-gray-100 rounded text-xs overflow-x-auto">
+                    {`POST /api/query
 Content-Type: application/json
 Authorization: Bearer eb_...
 
@@ -546,18 +542,19 @@ Authorization: Bearer eb_...
   "query": "What is the company policy?",
   "conversationHistory": []
 }`}
-                </pre>
-              </div>
+                  </pre>
+                </div>
 
-              <div>
-                <h4 className="font-bold mb-2">Response Example</h4>
-                <pre className="p-2 bg-gray-100 rounded text-xs overflow-x-auto">
-                  {`{
+                <div>
+                  <h4 className="font-bold mb-2">Response Example</h4>
+                  <pre className="p-2 bg-gray-100 rounded text-xs overflow-x-auto">
+                    {`{
   "answer": "The company policy states...",
   "query": "What is the company policy?",
   "timestamp": "2024-01-01T00:00:00Z"
 }`}
-                </pre>
+                  </pre>
+                </div>
               </div>
             </div>
           </div>

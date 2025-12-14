@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-// GET /api/tags - Get all tags for the tenant
+// GET /api/tags - Get all tags for the tenant (with user counts)
 export async function GET(request: NextRequest) {
   try {
     const { user, tenant } = await requireTenant(request);
@@ -22,16 +22,35 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Fetch tags with user count and document count in a single query
     const tags = await prisma.tag.findMany({
       where: {
         tenantId: tenant.id,
+      },
+      include: {
+        _count: {
+          select: {
+            tenantMembers: true, // Count users with this tag
+            documents: true,     // Count documents with this tag
+          },
+        },
       },
       orderBy: {
         name: 'asc',
       },
     });
 
-    return NextResponse.json({ tags });
+    // Transform the response to include userCount and documentCount at the top level
+    const tagsWithCounts = tags.map((tag) => ({
+      id: tag.id,
+      name: tag.name,
+      createdAt: tag.createdAt,
+      updatedAt: tag.updatedAt,
+      userCount: tag._count.tenantMembers,
+      documentCount: tag._count.documents,
+    }));
+
+    return NextResponse.json({ tags: tagsWithCounts });
   } catch (error) {
     console.error('Error fetching tags:', error);
     return NextResponse.json(

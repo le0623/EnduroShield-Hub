@@ -146,8 +146,8 @@ export default function RootLayout({
             currentTenant={currentTenant}
             availableTenants={availableTenants}
           />
-          <div className="flex-1 overflow-y-auto">
-            <main className="relative pt-6">
+          <div className="flex-1 overflow-hidden flex flex-col">
+            <main className="relative pt-6 flex-1 flex flex-col min-h-0 overflow-y-auto">
               {children}
             </main>
           </div>

@@ -49,6 +49,8 @@
     "pdf2json": "^4.0.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
     "stripe": "^20.0.0",
     "tailwind-merge": "^3.3.1",

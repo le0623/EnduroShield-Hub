@@ -15,6 +15,7 @@ export async function GET(
           select: {
             id: true,
             name: true,
+            subdomain: true,
             logoUrl: true,
           },
         },
@@ -44,6 +45,21 @@ export async function GET(
       );
     }
 
+    // Check if user already exists with this email
+    const existingUser = await prisma.user.findUnique({
+      where: { email: invitation.email },
+      include: {
+        tenants: {
+          where: {
+            tenantId: invitation.tenantId,
+          },
+        },
+      },
+    });
+
+    const userExists = !!existingUser;
+    const alreadyMember = existingUser?.tenants && existingUser.tenants.length > 0;
+
     return NextResponse.json({
       invitation: {
         id: invitation.id,
@@ -52,6 +68,8 @@ export async function GET(
         expiresAt: invitation.expiresAt,
         tenant: invitation.tenant,
       },
+      userExists,
+      alreadyMember,
     });
   } catch (error) {
     console.error('Error fetching invitation:', error);

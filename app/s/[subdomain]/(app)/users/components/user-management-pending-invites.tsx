@@ -1,54 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Image from "next/image";
+import { useState } from "react";
+import { usePendingInvitations, useInvalidateUserManagement } from "@/lib/hooks/useQueries";
 
-interface Invitation {
-  id: string;
-  email: string;
-  role: string;
-  status: string;
-  createdAt: string;
-  expiresAt: string;
-  user: {
-    id: string;
-    name: string | null;
-    email: string;
-  } | null;
-}
-
-interface PendingInvitesTabProps {
-  onInvitationUpdate?: () => void;
-}
-
-export default function PendingInvitesTab({ onInvitationUpdate }: PendingInvitesTabProps) {
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+export default function PendingInvitesTab() {
   const [processingInvitationId, setProcessingInvitationId] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchInvitations();
-  }, []);
-
-  const fetchInvitations = async () => {
-    try {
-      setIsLoading(true);
-      setError("");
-      const response = await fetch("/api/users/invitations?status=PENDING");
-      if (response.ok) {
-        const data = await response.json();
-        setInvitations(data.invitations || []);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.error || "Failed to load invitations");
-      }
-    } catch (err) {
-      setError("An error occurred while loading invitations");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  
+  // Use shared React Query hook - data is cached and shared with parent
+  const { data, isLoading, isError, error } = usePendingInvitations();
+  const invalidateUserManagement = useInvalidateUserManagement();
+  
+  const invitations = data?.invitations || [];
 
   const handleResend = async (invitationId: string) => {
     setProcessingInvitationId(invitationId);
@@ -92,10 +54,7 @@ export default function PendingInvitesTab({ onInvitationUpdate }: PendingInvites
 
       if (response.ok) {
         alert("Invitation cancelled successfully!");
-        fetchInvitations(); // Refresh the list
-        if (onInvitationUpdate) {
-          onInvitationUpdate(); // Notify parent to refresh stats
-        }
+        invalidateUserManagement(); // Refresh cached data
       } else {
         const errorData = await response.json();
         alert(errorData.error || "Failed to cancel invitation");
@@ -147,10 +106,10 @@ export default function PendingInvitesTab({ onInvitationUpdate }: PendingInvites
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="text-center py-10 text-red-600">
-        {error}
+        {error instanceof Error ? error.message : "Failed to load invitations"}
       </div>
     );
   }

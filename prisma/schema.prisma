@@ -199,12 +199,14 @@ model Conversation {
 }
 
 model Message {
-  id             String       @id @default(cuid())
-  conversationId String       @map("conversation_id")
-  role           MessageRole // USER or ASSISTANT
+  id             String          @id @default(cuid())
+  conversationId String          @map("conversation_id")
+  role           MessageRole     // USER or ASSISTANT
   content        String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  createdAt      DateTime     @default(now()) @map("created_at")
+  sources        Json?           // Source documents for assistant messages [{documentId, documentName}]
+  feedback       MessageFeedback? // Feedback for assistant messages
+  conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime        @default(now()) @map("created_at")
 
   @@index([conversationId])
   @@map("messages")
@@ -213,6 +215,11 @@ model Message {
 enum MessageRole {
   USER
   ASSISTANT
+}
+
+enum MessageFeedback {
+  POSITIVE
+  NEGATIVE
 }
 
 // Widget configuration for embeddable AI assistant

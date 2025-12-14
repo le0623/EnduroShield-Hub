@@ -31,8 +31,8 @@ export default function Settings() {
   return (
     <div className="flex flex-col">
       {/* Hero Section */}
-      <div className="flex flex-wrap gap-y-4 -mx-3">
-        <div className="w-full px-3">
+      <div className="flex flex-wrap gap-y-4">
+        <div className="w-full">
           <div className="h-full p-5 lg:pb-0 relative">
             {/* Background Blobs */}
             <div className="rounded-xl absolute inset-0 bg-[#e4e4e4] overflow-hidden">
@@ -79,15 +79,15 @@ export default function Settings() {
         </div>
 
         {/* Tabs Section */}
-        <div className="w-full px-3">
-          <div className="rounded-xl border light-border bg-white h-full p-4">
+        <div className="w-full">
+          <div className="rounded-xl border light-border bg-white h-full">
             {/* Tabs */}
             <ul className="mb-3 nav nav-tabs flex border-b light-border [&>*]:flex-1 [&>*]:nav-item [&>*]:inline-flex [&>*]:justify-center [&>*]:items-center [&>*]:gap-1">
               {["general", "security", "notifications", "integrations", "advanced"].map((tab) => (
                 <li
                   key={tab}
                   className={`nav-item cursor-pointer py-2 ${activeTab === tab
-                    ? "active"
+                    ? "border-b-3 border-primary"
                     : ""
                     }`}
                   onClick={() => setActiveTab(tab)}

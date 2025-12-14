@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { formatFileSize } from "@/lib/s3";
 import {
@@ -56,7 +55,6 @@ interface Stats {
 }
 
 export default function Document() {
-  const router = useRouter();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, approved: 0, pending: 0, rejected: 0 });
   const [isLoading, setIsLoading] = useState(true);
@@ -75,40 +73,10 @@ export default function Document() {
   const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<Document | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
-  const [isCheckingPermission, setIsCheckingPermission] = useState(true);
-
-  // Check admin permission on mount
-  useEffect(() => {
-    const checkPermission = async () => {
-      try {
-        const response = await fetch('/api/user/membership');
-        if (response.ok) {
-          const data = await response.json();
-          if (!data.isAdmin) {
-            router.push('/dashboard');
-            return;
-          }
-        } else {
-          router.push('/dashboard');
-          return;
-        }
-      } catch (error) {
-        console.error('Failed to check permission:', error);
-        router.push('/dashboard');
-        return;
-      } finally {
-        setIsCheckingPermission(false);
-      }
-    };
-
-    checkPermission();
-  }, [router]);
 
   useEffect(() => {
-    if (!isCheckingPermission) {
-      fetchDocuments();
-    }
-  }, [statusFilter, isCheckingPermission]);
+    fetchDocuments();
+  }, [statusFilter]);
 
   useEffect(() => {
     if (isEditDialogOpen) {
@@ -142,7 +110,7 @@ export default function Document() {
       if (response.ok) {
         const data = await response.json();
         setDocuments(data.documents || []);
-        
+
         // Calculate stats
         const total = data.documents?.length || 0;
         const approved = data.documents?.filter((doc: Document) => doc.status === 'APPROVED').length || 0;
@@ -180,14 +148,6 @@ export default function Document() {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   };
-
-  if (isCheckingPermission) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="w-8 h-8 border-4 border-gray-200 border-t-primary rounded-full animate-spin"></div>
-      </div>
-    );
-  }
 
   const handleEdit = (doc: Document) => {
     setEditingDocument(doc);
@@ -282,8 +242,8 @@ export default function Document() {
   };
 
   const toggleAccessTag = (tagId: string) => {
-    setSelectedAccessTagIds(prev => 
-      prev.includes(tagId) 
+    setSelectedAccessTagIds(prev =>
+      prev.includes(tagId)
         ? prev.filter(id => id !== tagId)
         : [...prev, tagId]
     );
@@ -291,79 +251,80 @@ export default function Document() {
 
   return (
     <div className="flex flex-col">
-      <div className="flex flex-wrap gap-y-6 -mx-3">
-        {/* Left Section */}
-        <div className="lg:w-3/5 w-full px-3">
-          <div className="h-full p-5 lg:pb-0 relative">
-            <div className="rounded-xl absolute inset-0 bg-[#e4e4e4] overflow-hidden">
-              <div className="w-[27vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[100px] absolute top-[10vw] right-[10vw] rotate-[37deg] opacity-80"></div>
-              <div className="w-[40vw] h-[18vw] rounded-[50%] bg-[#FEDCB6] blur-[130px] absolute top-[6vw] -right-[15vw] rotate-[50deg]"></div>
-              <div className="w-[17vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[70px] absolute top-[20vw] -right-[10vw] -rotate-[37deg] opacity-80"></div>
-            </div>
-            <div className="relative">
-              <div className="flex flex-wrap gap-y-5">
-                <div className="lg:-mt-9 md:w-1/2 md:order-last text-center">
-                  <Image
-                    src="/images/doc-folder.png"
-                    alt="Document Folder"
-                    width={400}
-                    height={400}
-                    className="max-w-full inline-block"
-                  />
-                </div>
-                <div className="flex flex-col items-start justify-center space-y-5 md:w-1/2 md:order-first [&_strong]:text-primary-500">
-                  <div>
-                    <h2 className="xl:text-4xl lg:text-3xl md:text-2xl text-xl font-extrabold leading-[1.2]">
-                      Document Library
-                    </h2>
-                    <p>Browse, search, and manage all your documents in one place</p>
+      <div className="flex flex-wrap gap-y-6">
+        <div className="flex lg:flex-row flex-col gap-6 w-full">
+          {/* Left Section */}
+          <div className="lg:w-3/5 w-full">
+            <div className="h-full p-5 lg:pb-0 relative">
+              <div className="rounded-xl absolute inset-0 bg-[#e4e4e4] overflow-hidden">
+                <div className="w-[27vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[100px] absolute top-[10vw] right-[10vw] rotate-[37deg] opacity-80"></div>
+                <div className="w-[40vw] h-[18vw] rounded-[50%] bg-[#FEDCB6] blur-[130px] absolute top-[6vw] -right-[15vw] rotate-[50deg]"></div>
+                <div className="w-[17vw] h-[11vw] rounded-[50%] bg-[#0198FF] blur-[70px] absolute top-[20vw] -right-[10vw] -rotate-[37deg] opacity-80"></div>
+              </div>
+              <div className="relative">
+                <div className="flex flex-wrap gap-y-5">
+                  <div className="lg:-mt-9 md:w-1/2 md:order-last text-center">
+                    <Image
+                      src="/images/doc-folder.png"
+                      alt="Document Folder"
+                      width={400}
+                      height={400}
+                      className="max-w-full inline-block"
+                    />
+                  </div>
+                  <div className="flex flex-col items-start justify-center space-y-5 md:w-1/2 md:order-first [&_strong]:text-primary-500">
+                    <div>
+                      <h2 className="xl:text-4xl lg:text-3xl md:text-2xl text-xl font-extrabold leading-[1.2]">
+                        Document Library
+                      </h2>
+                      <p>Browse, search, and manage all your documents in one place</p>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Stats Section */}
-        <div className="lg:w-2/5 w-full px-3">
-          <div className="rounded-xl border light-border bg-white h-full p-4">
-            <ul className="flex flex-wrap justify-between items-center sm:[&>*:nth-of-type(2n+1)]:border-r sm:[&>*:not(:nth-last-child(-n+2))]:border-b [&>*]:border-gray-200">
-              {[
-                { label: "Total Documents", value: stats.total, change: "0%", type: "up" },
-                { label: "Approved", value: stats.approved, change: "0%", type: "up" },
-                { label: "Pending Review", value: stats.pending, change: "0%", type: "up" },
-                { label: "Rejected", value: stats.rejected, change: "0%", type: "down" },
-              ].map((item, index) => (
-                <li
-                  key={index}
-                  className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start"
-                >
-                  <span className="text-gray-500 text-sm font-medium">{item.label}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
-                      {item.value}
-                    </span>
-                    <span
-                      className={`text-sm font-bold flex ${item.type === "up" ? "text-green-600 [&_img]:icon-theme-green-500" : "text-red-600 [&_img]:icon-red-500"
-                        }`}
-                    >
-                      <Image
-                        src={`/images/icons/arrow-${item.type}ward.svg`}
-                        alt={item.type === "up" ? "Up" : "Down"}
-                        width={16}
-                        height={16}
-                      />
-                      {item.change}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+          {/* Stats Section */}
+          <div className="lg:w-2/5 w-full">
+            <div className="rounded-xl border light-border bg-white h-full p-4">
+              <ul className="flex flex-wrap justify-between items-center sm:[&>*:nth-of-type(2n+1)]:border-r sm:[&>*:not(:nth-last-child(-n+2))]:border-b [&>*]:border-gray-200">
+                {[
+                  { label: "Total Documents", value: stats.total, change: "0%", type: "up" },
+                  { label: "Approved", value: stats.approved, change: "0%", type: "up" },
+                  { label: "Pending Review", value: stats.pending, change: "0%", type: "up" },
+                  { label: "Rejected", value: stats.rejected, change: "0%", type: "down" },
+                ].map((item, index) => (
+                  <li
+                    key={index}
+                    className="sm:w-1/2 w-full px-6 py-5 flex flex-col items-start"
+                  >
+                    <span className="text-gray-500 text-sm font-medium">{item.label}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="xl:text-3xl lg:text-2xl text-xl font-extrabold text-gray-900">
+                        {item.value}
+                      </span>
+                      <span
+                        className={`text-sm font-bold flex ${item.type === "up" ? "text-green-600 [&_img]:icon-theme-green-500" : "text-red-600 [&_img]:icon-red-500"
+                          }`}
+                      >
+                        <Image
+                          src={`/images/icons/arrow-${item.type}ward.svg`}
+                          alt={item.type === "up" ? "Up" : "Down"}
+                          width={16}
+                          height={16}
+                        />
+                        {item.change}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
-
         {/* Search & Filters */}
-        <div className="w-full px-3">
+        <div className="w-full">
           <div className="flex flex-col items-center gap-3">
             <div className="panel-header w-full flex flex-wrap justify-between items-center gap-3">
               <h3 className="mb-0 text-lg font-semibold text-gray-950">Search & Filters</h3>
@@ -379,7 +340,7 @@ export default function Document() {
                     onChange={(e) => setSearch(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                   />
-                  <button 
+                  <button
                     onClick={handleSearch}
                     className="w-8 h-8 !p-0 flex-none !flex justify-center items-center rounded-lg hover:bg-gray-100 absolute right-1 cursor-pointer"
                   >
@@ -395,7 +356,7 @@ export default function Document() {
 
               {/* Status Filter */}
               <li className="xl:flex-1 lg:w-2/8 md:w-2/6 w-2/4 px-1">
-                <select 
+                <select
                   className="form-control"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
@@ -408,7 +369,7 @@ export default function Document() {
               </li>
 
               <li className="px-1">
-                <button 
+                <button
                   onClick={fetchDocuments}
                   className="btn btn-secondary"
                 >
@@ -420,7 +381,7 @@ export default function Document() {
         </div>
 
         {/* Documents Table */}
-        <div className="w-full px-3">
+        <div className="w-full">
           <div className="rounded-xl border light-border bg-white h-full p-4">
             <div className="flex flex-col items-center gap-3">
               <div className="panel-header w-full flex flex-wrap justify-between items-center gap-3">
@@ -479,10 +440,10 @@ export default function Document() {
                             <div className="flex items-center gap-1">
                               <div className="size-8 rounded-full overflow-hidden flex justify-center items-center bg-gray-100">
                                 {doc.submittedBy.profileImageUrl ? (
-                                  <Image 
-                                    src={doc.submittedBy.profileImageUrl} 
-                                    alt="Author" 
-                                    width={32} 
+                                  <Image
+                                    src={doc.submittedBy.profileImageUrl}
+                                    alt="Author"
+                                    width={32}
                                     height={32}
                                     className="rounded-full"
                                   />
@@ -509,8 +470,8 @@ export default function Document() {
                             {doc.accessTags && doc.accessTags.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
                                 {doc.accessTags.map((tag) => (
-                                  <span 
-                                    key={tag.id} 
+                                  <span
+                                    key={tag.id}
                                     className="px-2 py-0.5 text-xs font-semibold rounded-full border border-blue-200 bg-blue-50 text-blue-700"
                                   >
                                     {tag.name}
@@ -526,7 +487,7 @@ export default function Document() {
                           </td>
                           <td>
                             <div className="flex justify-center items-center gap-1">
-                              <button 
+                              <button
                                 className="btn btn-primary-light !size-8 !p-0 !rounded-full !flex justify-center items-center"
                                 onClick={() => window.open(doc.fileUrl, '_blank')}
                                 title="View"
@@ -535,14 +496,14 @@ export default function Document() {
                               </button>
                               {doc.status === 'APPROVED' && (
                                 <>
-                                  <button 
+                                  <button
                                     className="btn btn-primary-light !size-8 !p-0 !rounded-full !flex justify-center items-center"
                                     onClick={() => handleEdit(doc)}
                                     title="Edit"
                                   >
                                     <Image src="/images/icons/pencil.svg" alt="Edit" width={16} height={16} />
                                   </button>
-                                  <button 
+                                  <button
                                     className="btn btn-primary-light !size-8 !p-0 !rounded-full !flex justify-center items-center text-red-600 hover:text-red-700"
                                     onClick={() => setDeleteConfirmDoc(doc)}
                                     title="Delete"

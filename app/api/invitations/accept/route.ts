@@ -19,7 +19,13 @@ export async function POST(request: NextRequest) {
     const invitation = await prisma.userInvitation.findUnique({
       where: { token },
       include: {
-        tenant: true,
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            subdomain: true,
+          },
+        },
       },
     });
 
@@ -113,6 +119,7 @@ export async function POST(request: NextRequest) {
         message: 'Successfully joined organization',
         user: user,
         isNewUser: false,
+        tenant: invitation.tenant,
       });
     } else {
       // New user - create account
@@ -166,6 +173,7 @@ export async function POST(request: NextRequest) {
         message: 'Account created successfully',
         user: newUser,
         isNewUser: true,
+        tenant: invitation.tenant,
       });
     }
   } catch (error) {

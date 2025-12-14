@@ -21,17 +21,17 @@ interface SidebarProps {
 }
 
 const allNavItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: HomeIcon, active: true, adminOnly: false },
-  { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon, active: false, adminOnly: false },
-  { id: 'users', label: 'User Management', icon: UserIcon, active: false, adminOnly: false },
-  { id: 'upload', label: 'Upload', icon: UploadIcon, active: false, adminOnly: true },
-  { id: 'documents', label: 'Documents', icon: DocumentIcon, active: false, adminOnly: true },
-  { id: 'approval', label: 'Document Approval', icon: ApprovalIcon, active: false, adminOnly: true },
-  { id: 'search', label: 'AI-Powerd Search', icon: LightningIcon, active: false, adminOnly: false },
-  { id: 'billing', label: 'Billing & Usage', icon: BillingIcon, active: false, adminOnly: false },
-  { id: 'integration', label: 'API Key', icon: KeyIcon, active: false, adminOnly: false },
-  { id: 'widget', label: 'Widget', icon: WidgetIcon, active: false, adminOnly: true },
-  { id: 'settings', label: 'Settings', icon: SettingsIcon, active: false, adminOnly: false },
+  { id: 'dashboard', label: 'Dashboard', icon: HomeIcon, active: true, adminOnly: false, nonAdminOnly: false },
+  { id: 'analytics', label: 'Analytics', icon: AnalyticsIcon, active: false, adminOnly: false, nonAdminOnly: false },
+  { id: 'users', label: 'User Management', icon: UserIcon, active: false, adminOnly: true, nonAdminOnly: false },
+  { id: 'upload', label: 'Upload', icon: UploadIcon, active: false, adminOnly: false, nonAdminOnly: false },
+  { id: 'documents', label: 'Documents', icon: DocumentIcon, active: false, adminOnly: false, nonAdminOnly: false },
+  { id: 'approval', label: 'Document Approval', icon: ApprovalIcon, active: false, adminOnly: false, nonAdminOnly: false },
+  { id: 'search', label: 'AI-Powered Search', icon: LightningIcon, active: false, adminOnly: false, nonAdminOnly: true },
+  { id: 'billing', label: 'Billing & Usage', icon: BillingIcon, active: false, adminOnly: false, nonAdminOnly: false },
+  { id: 'integration', label: 'API Key', icon: KeyIcon, active: false, adminOnly: false, nonAdminOnly: false },
+  { id: 'widget', label: 'Widget', icon: WidgetIcon, active: false, adminOnly: true, nonAdminOnly: false },
+  { id: 'settings', label: 'Settings', icon: SettingsIcon, active: false, adminOnly: false, nonAdminOnly: false },
 ];
 
 export default function DashboardSidebar({ isOpen, onClose }: SidebarProps) {
@@ -76,7 +76,13 @@ export default function DashboardSidebar({ isOpen, onClose }: SidebarProps) {
   }, [isOpen, onClose]);
 
   // Filter navigation items based on admin status
-  const navItems = allNavItems.filter(item => !item.adminOnly || isAdmin);
+  // - adminOnly items: only visible to admins
+  // - nonAdminOnly items: only visible to non-admins
+  const navItems = allNavItems.filter(item => {
+    if (item.adminOnly && !isAdmin) return false;
+    if (item.nonAdminOnly && isAdmin) return false;
+    return true;
+  });
 
   // Prevent body scroll when sidebar is open on mobile
   useEffect(() => {

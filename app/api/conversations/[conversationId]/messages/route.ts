@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { generateRAGAnswer } from '@/lib/rag/rag';
+import { generateRAGAnswerWithUsage } from '@/lib/rag/rag';
 import { checkBalance } from '@/lib/billing';
 
 // GET /api/conversations/[conversationId]/messages - Get all messages in a conversation
@@ -43,6 +43,8 @@ export async function GET(
         id: msg.id,
         role: msg.role,
         content: msg.content,
+        sources: msg.sources,
+        feedback: msg.feedback,
         createdAt: msg.createdAt,
       })),
     });
@@ -120,12 +122,15 @@ export async function POST(
           id: userMessage.id,
           role: userMessage.role,
           content: userMessage.content,
+          feedback: userMessage.feedback,
           createdAt: userMessage.createdAt,
         },
         assistantMessage: {
           id: assistantMessage.id,
           role: assistantMessage.role,
           content: assistantMessage.content,
+          sources: assistantMessage.sources,
+          feedback: assistantMessage.feedback,
           createdAt: assistantMessage.createdAt,
         },
       });
@@ -169,12 +174,15 @@ export async function POST(
           id: userMessage.id,
           role: userMessage.role,
           content: userMessage.content,
+          feedback: userMessage.feedback,
           createdAt: userMessage.createdAt,
         },
         assistantMessage: {
           id: assistantMessage.id,
           role: assistantMessage.role,
           content: assistantMessage.content,
+          sources: assistantMessage.sources,
+          feedback: assistantMessage.feedback,
           createdAt: assistantMessage.createdAt,
         },
       });
@@ -212,12 +220,15 @@ export async function POST(
           id: userMessage.id,
           role: userMessage.role,
           content: userMessage.content,
+          feedback: userMessage.feedback,
           createdAt: userMessage.createdAt,
         },
         assistantMessage: {
           id: assistantMessage.id,
           role: assistantMessage.role,
           content: assistantMessage.content,
+          sources: assistantMessage.sources,
+          feedback: assistantMessage.feedback,
           createdAt: assistantMessage.createdAt,
         },
         error: {
@@ -245,7 +256,7 @@ export async function POST(
     }));
 
     // Generate answer using RAG (with user tag filtering)
-    const assistantResponse = await generateRAGAnswer(
+    const ragResponse = await generateRAGAnswerWithUsage(
       content.trim(),
       tenant.id,
       conversationHistory,
@@ -261,12 +272,17 @@ export async function POST(
       },
     });
 
-    // Save assistant response
+    // Save assistant response with sources
     const assistantMessage = await prisma.message.create({
       data: {
         conversationId,
         role: 'ASSISTANT',
-        content: assistantResponse,
+        content: ragResponse.answer,
+        sources: ragResponse.sources.length > 0 ? ragResponse.sources.map(source => ({
+          documentId: source.documentId,
+          documentName: source.documentName,
+          documentUrl: source.documentUrl,
+        })) : undefined,
       },
     });
 
@@ -294,12 +310,15 @@ export async function POST(
         id: userMessage.id,
         role: userMessage.role,
         content: userMessage.content,
+        feedback: userMessage.feedback,
         createdAt: userMessage.createdAt,
       },
       assistantMessage: {
         id: assistantMessage.id,
         role: assistantMessage.role,
         content: assistantMessage.content,
+        sources: assistantMessage.sources,
+        feedback: assistantMessage.feedback,
         createdAt: assistantMessage.createdAt,
       },
     });

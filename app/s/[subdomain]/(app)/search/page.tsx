@@ -1,7 +1,12 @@
 "use client";
 
+import { Button } from '@/components/ui/button';
+import { PlusIcon, Trash2, ThumbsUp, ThumbsDown, Copy, Check, FileText } from 'lucide-react';
 import Image from 'next/image';
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Conversation {
   id: string;
@@ -12,14 +17,23 @@ interface Conversation {
   preview: string;
 }
 
+interface MessageSource {
+  documentId: string;
+  documentName: string;
+  documentUrl: string;
+}
+
 interface Message {
   id: string;
   role: 'USER' | 'ASSISTANT';
   content: string;
+  sources?: MessageSource[] | null;
+  feedback?: 'POSITIVE' | 'NEGATIVE' | null;
   createdAt: string;
 }
 
 export default function AiPowerChat() {
+  const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -28,13 +42,40 @@ export default function AiPowerChat() {
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState('');
+  const [isCheckingPermission, setIsCheckingPermission] = useState(true);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [deletingConversationId, setDeletingConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
 
+  // Check permission - admins should not access this page
+  useEffect(() => {
+    const checkPermission = async () => {
+      try {
+        const response = await fetch('/api/user/membership');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.isAdmin) {
+            router.push('/dashboard');
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check permission:', error);
+      } finally {
+        setIsCheckingPermission(false);
+      }
+    };
+
+    checkPermission();
+  }, [router]);
+
   // Fetch conversations on mount
   useEffect(() => {
-    fetchConversations();
-  }, []);
+    if (!isCheckingPermission) {
+      fetchConversations();
+    }
+  }, [isCheckingPermission]);
 
   // Fetch messages when conversation changes
   useEffect(() => {
@@ -225,29 +266,109 @@ export default function AiPowerChat() {
   const selectConversation = (conversationId: string) => {
     setCurrentConversationId(conversationId);
   };
+
+  const deleteConversation = async (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent selecting the conversation
+    if (deletingConversationId) return;
+
+    try {
+      setDeletingConversationId(conversationId);
+      const response = await fetch(`/api/conversations/${conversationId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // If deleting the current conversation, clear it
+        if (currentConversationId === conversationId) {
+          setCurrentConversationId(null);
+          setMessages([]);
+        }
+        // Refresh conversations list
+        await fetchConversations();
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to delete conversation');
+      }
+    } catch (err) {
+      setError('An error occurred while deleting conversation');
+    } finally {
+      setDeletingConversationId(null);
+    }
+  };
+
+  const handleFeedback = async (messageId: string, feedback: 'POSITIVE' | 'NEGATIVE') => {
+    // Optimistically update the UI
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (msg.id === messageId) {
+          // Toggle off if clicking the same feedback
+          const newFeedback = msg.feedback === feedback ? null : feedback;
+          return { ...msg, feedback: newFeedback };
+        }
+        return msg;
+      })
+    );
+
+    try {
+      const message = messages.find((m) => m.id === messageId);
+      const newFeedback = message?.feedback === feedback ? null : feedback;
+
+      await fetch(`/api/messages/${messageId}/feedback`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ feedback: newFeedback }),
+      });
+    } catch (err) {
+      // Revert on error
+      setError('Failed to save feedback');
+    }
+  };
+
+  const copyToClipboard = async (text: string, messageId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch (err) {
+      setError('Failed to copy to clipboard');
+    }
+  };
+
+  if (isCheckingPermission) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col">
-      <div className="flex flex-wrap gap-y-6 -mx-2">
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="grid lg:grid-cols-3 grid-cols-1 gap-y-6 lg:gap-x-6 flex-1 min-h-0">
         {/* Conversations Sidebar */}
-        <div className="lg:w-2/6 w-full px-2 flex flex-col">
-          <div className="rounded-xl border light-border bg-white h-full flex flex-col">
-            <div className="p-4 rounded-t-xl bg-gray-50 flex flex-wrap justify-between items-start gap-3">
+        <div className="col-span-1 flex flex-col min-h-[400px]">
+          <div className="rounded-xl border light-border bg-white flex flex-col flex-1 min-h-0 overflow-hidden">
+            <div className="p-4 rounded-t-xl bg-gray-50 flex flex-wrap justify-between items-start gap-3 flex-shrink-0">
               <div className="flex-1">
                 <h3 className="xl:text-3xl lg:text-2xl md:text-xl text-xl font-extrabold leading-[1.2]">
                   Conversations
                 </h3>
                 <p className="font-medium text-gray-500">Previous chat history</p>
               </div>
-              <button
+              <Button
                 onClick={createNewConversation}
                 disabled={isSending}
                 className="btn btn-secondary !inline-flex gap-1 !justify-start text-nowrap"
               >
-                <Image src="/images/icons/plus.svg" alt="" width={16} height={16} />
+                <PlusIcon
+                  className="size-4"
+                />
                 New Chat
-              </button>
+              </Button>
             </div>
-            <div className="p-4 flex-1 overflow-y-auto">
+            <div className="p-4 flex-1 overflow-y-auto min-h-0">
               {isLoadingConversations ? (
                 <div className="flex justify-center py-10">
                   <div className="w-8 h-8 border-4 border-gray-200 border-t-primary rounded-full animate-spin"></div>
@@ -262,18 +383,31 @@ export default function AiPowerChat() {
                     <div
                       key={conv.id}
                       onClick={() => selectConversation(conv.id)}
-                      className={`flex flex-col items-start gap-2 py-3 cursor-pointer hover:bg-gray-50 rounded-lg px-2 transition-colors ${
-                        currentConversationId === conv.id ? 'bg-gray-100' : ''
-                      }`}
+                      className={`group flex flex-col items-start gap-2 py-3 cursor-pointer hover:bg-gray-50 px-2 transition-colors relative ${currentConversationId === conv.id ? 'bg-gray-100' : ''
+                        }`}
                     >
-                      <h4 className="text-base font-semibold text-wrap break-all">
-                        {conv.title}{" "}
-                        {conv.messageCount > 0 && (
-                          <span className="size-5 text-xs text-white inline-flex justify-center items-center rounded-full bg-primary-500">
-                            {conv.messageCount}
-                          </span>
-                        )}
-                      </h4>
+                      <div className="flex items-start justify-between w-full gap-2">
+                        <h4 className="text-base font-semibold text-wrap break-all flex-1">
+                          {conv.title}{" "}
+                          {conv.messageCount > 0 && (
+                            <span className="size-5 text-xs text-white inline-flex justify-center items-center rounded-full bg-primary-500">
+                              {conv.messageCount}
+                            </span>
+                          )}
+                        </h4>
+                        <button
+                          onClick={(e) => deleteConversation(conv.id, e)}
+                          disabled={deletingConversationId === conv.id}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded text-gray-400 hover:text-red-500 flex-shrink-0"
+                          title="Delete conversation"
+                        >
+                          {deletingConversationId === conv.id ? (
+                            <div className="w-4 h-4 border-2 border-gray-300 border-t-red-500 rounded-full animate-spin"></div>
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                       {conv.preview && (
                         <p className="text-sm font-semibold text-wrap break-all text-gray-500 line-clamp-2">
                           {conv.preview}
@@ -291,9 +425,9 @@ export default function AiPowerChat() {
         </div>
 
         {/* Knowledge Chat */}
-        <div className="lg:w-4/6 w-full px-2 flex flex-col">
-          <div className="rounded-xl border light-border bg-white p-4 flex flex-col" style={{ minHeight: '600px', maxHeight: 'calc(100vh - 250px)' }}>
-            <div className="flex flex-wrap justify-between items-start gap-3 mb-4">
+        <div className="col-span-2 flex flex-col min-h-[400px]">
+          <div className="rounded-xl border light-border bg-white p-4 flex flex-col flex-1 min-h-0 overflow-hidden">
+            <div className="flex flex-wrap justify-between items-start gap-3 mb-4 flex-shrink-0">
               <div className="flex-1">
                 <h3 className="xl:text-3xl lg:text-2xl md:text-xl text-xl font-extrabold leading-[1.2]">
                   Knowledge Chat
@@ -305,7 +439,7 @@ export default function AiPowerChat() {
             </div>
 
             {error && (
-              <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex-shrink-0">
                 {error}
               </div>
             )}
@@ -350,14 +484,85 @@ export default function AiPowerChat() {
                     key={message.id}
                     className={`flex ${message.role === 'USER' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div
-                      className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                        message.role === 'USER'
+                    <div className="max-w-[80%] group">
+                      <div
+                        className={`rounded-lg px-4 py-2 ${message.role === 'USER'
                           ? 'bg-primary text-white'
                           : 'bg-gray-100 text-gray-900'
-                      }`}
-                    >
-                      <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                          }`}
+                      >
+                        {message.role === 'USER' ? (
+                          <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+                        ) : (
+                          <div className="prose prose-sm max-w-none prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-code:bg-gray-200 prose-code:px-1 prose-code:rounded prose-pre:bg-gray-800 prose-pre:text-gray-100">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {message.content}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Source documents - only for assistant messages */}
+                      {message.role === 'ASSISTANT' && message.sources && message.sources.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <span className="text-xs text-gray-500">Sources:</span>
+                          {message.sources.map((source, idx) => (
+                            <a
+                              key={idx}
+                              href={source.documentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full hover:bg-blue-100 transition-colors"
+                              title={source.documentName}
+                            >
+                              <FileText className="w-3 h-3" />
+                              <span className="max-w-[150px] truncate">{source.documentName}</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div className={`flex items-center gap-1 mt-1 ${message.role === 'USER' ? 'justify-end' : 'justify-start'}`}>
+                        {/* Copy button - for all messages */}
+                        <button
+                          onClick={() => copyToClipboard(message.content, message.id)}
+                          className="p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors"
+                          title="Copy to clipboard"
+                        >
+                          {copiedMessageId === message.id ? (
+                            <Check className="w-3.5 h-3.5 text-green-500" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+
+                        {/* Feedback buttons - only for assistant messages */}
+                        {message.role === 'ASSISTANT' && !message.id.startsWith('temp-') && (
+                          <>
+                            <button
+                              onClick={() => handleFeedback(message.id, 'POSITIVE')}
+                              className={`p-1 rounded transition-colors ${message.feedback === 'POSITIVE'
+                                  ? 'bg-green-100 text-green-600'
+                                  : 'hover:bg-gray-200 text-gray-400 hover:text-gray-600'
+                                }`}
+                              title="Good response"
+                            >
+                              <ThumbsUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleFeedback(message.id, 'NEGATIVE')}
+                              className={`p-1 rounded transition-colors ${message.feedback === 'NEGATIVE'
+                                  ? 'bg-red-100 text-red-600'
+                                  : 'hover:bg-gray-200 text-gray-400 hover:text-gray-600'
+                                }`}
+                              title="Bad response"
+                            >
+                              <ThumbsDown className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))
@@ -377,16 +582,16 @@ export default function AiPowerChat() {
             </div>
 
             {/* Input Area */}
-            <div className="space-y-3 border-t pt-4">
+            <div className="space-y-3 pt-2 flex-shrink-0">
               <div className="flex items-center light-dark-icon relative">
                 <input
                   type="text"
                   placeholder="Ask question about your documents"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
-                  onKeyPress={handleKeyPress}
+                  onKeyDown={handleKeyPress}
                   disabled={isSending}
-                  className="form-control !pr-10 !bg-transparent flex-1"
+                  className="form-control !pr-10 !bg-transparent border border-gray-200 rounded-lg px-4 py-3 flex-1"
                 />
                 <button
                   type="button"
@@ -397,7 +602,7 @@ export default function AiPowerChat() {
                   <Image
                     src="/images/icons/send.svg"
                     alt="Send"
-                    className="icon-img"
+                    className="icon-img w-5 h-5"
                     width={16}
                     height={16}
                   />
