@@ -80,8 +80,14 @@ export async function POST(
 
       console.log(`📊 Extracted ${text.length} characters from document`);
 
+      // Prepend document name and description for better semantic search
+      const metadataPrefix = `Document Title: ${document.name}\n${document.description ? `Description: ${document.description}\n\n` : '\n'}`;
+      const textWithMetadata = metadataPrefix + text;
+
+      console.log(`📝 Added metadata prefix (${metadataPrefix.length} chars) to document content`);
+
       // Process and embed the document
-      await processAndEmbedDocument(documentId, text);
+      await processAndEmbedDocument(documentId, textWithMetadata);
       console.log(`✅ Document ${documentId} processed and embedded successfully`);
     } catch (error) {
       console.error('Error processing document for RAG:', error);

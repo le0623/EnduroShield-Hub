@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { uploadToS3, validateFileType, getFileSizeLimit } from '@/lib/s3';
+import { processAndEmbedDocument } from '@/lib/rag/embeddings';
+import { loadFileText, loadPDFText, loadDOCXText } from '@/lib/utils/fileLoader';
+
+// DOCX and DOC MIME types for auto-approval processing
+const WORD_MIME_TYPES = [
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  'application/docx',
+  'application/msword', // .doc
+];
 
 export async function POST(request: NextRequest) {
   try {
@@ -94,7 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Save document to database
-    const document = await prisma.document.create({
+    let document = await prisma.document.create({
       data: {
         name: name.trim(),
         originalName: file.name,
@@ -120,8 +129,69 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Auto-approve for admin uploads: process and embed the document
+    let autoApproved = false;
+    try {
+      console.log(`🔄 Auto-approving admin upload: ${document.name}`);
+      
+      // Load document text based on file type
+      let text: string;
+      
+      if (uploadResult.mimeType === 'application/pdf') {
+        console.log(`📄 Processing PDF document: ${document.name}`);
+        text = await loadPDFText(uploadResult.url);
+      } else if (WORD_MIME_TYPES.includes(uploadResult.mimeType)) {
+        console.log(`📝 Processing Word document: ${document.name} (${uploadResult.mimeType})`);
+        text = await loadDOCXText(uploadResult.url);
+      } else {
+        console.log(`📃 Processing text document: ${document.name} (${uploadResult.mimeType})`);
+        text = await loadFileText(uploadResult.url, uploadResult.mimeType);
+      }
+
+      if (text && text.trim() !== '') {
+        console.log(`📊 Extracted ${text.length} characters from document`);
+
+        // Prepend document name and description for better semantic search
+        const metadataPrefix = `Document Title: ${document.name}\n${description?.trim() ? `Description: ${description.trim()}\n\n` : '\n'}`;
+        const textWithMetadata = metadataPrefix + text;
+
+        console.log(`📝 Added metadata prefix (${metadataPrefix.length} chars) to document content`);
+
+        // Process and embed the document
+        await processAndEmbedDocument(document.id, textWithMetadata);
+        console.log(`✅ Document ${document.id} processed and embedded successfully`);
+
+        // Update document status to APPROVED
+        document = await prisma.document.update({
+          where: { id: document.id },
+          data: {
+            status: 'APPROVED',
+            approvedBy: user.id,
+            approvedAt: new Date(),
+          },
+          include: {
+            submittedByUser: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        });
+        autoApproved = true;
+      } else {
+        console.warn(`⚠️ No text content extracted from ${document.name}, leaving as PENDING`);
+      }
+    } catch (embedError) {
+      console.error('⚠️ Auto-approval failed, document will remain pending:', embedError);
+      // Document remains in PENDING status, admin can manually approve later
+    }
+
     return NextResponse.json({
-      message: 'Document uploaded successfully',
+      message: autoApproved 
+        ? 'Document uploaded and automatically approved' 
+        : 'Document uploaded successfully (pending manual approval)',
       document: {
         id: document.id,
         name: document.name,
@@ -133,6 +203,7 @@ export async function POST(request: NextRequest) {
         status: document.status,
         submittedBy: document.submittedByUser,
         createdAt: document.createdAt,
+        autoApproved,
       },
     });
   } catch (error) {
