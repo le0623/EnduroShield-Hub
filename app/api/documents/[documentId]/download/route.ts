@@ -12,17 +12,27 @@ export async function GET(
     const { documentId } = await params;
     const { user, tenant } = await requireTenant(request);
 
-    // Get document
+    // Get document with active version
     const document = await prisma.document.findFirst({
       where: {
         id: documentId,
         tenantId: tenant.id,
+      },
+      include: {
+        activeVersion: true,
       },
     });
 
     if (!document) {
       return NextResponse.json(
         { error: 'Document not found' },
+        { status: 404 }
+      );
+    }
+
+    if (!document.activeVersion) {
+      return NextResponse.json(
+        { error: 'Document has no active version' },
         { status: 404 }
       );
     }
@@ -44,13 +54,13 @@ export async function GET(
     }
 
     // Generate signed download URL (valid for 1 hour)
-    const downloadUrl = await getSignedDownloadUrl(document.fileKey, 3600);
+    const downloadUrl = await getSignedDownloadUrl(document.activeVersion.fileKey, 3600);
 
     return NextResponse.json({
       downloadUrl,
-      fileName: document.originalName,
-      fileSize: document.fileSize,
-      mimeType: document.mimeType,
+      fileName: document.activeVersion.originalName,
+      fileSize: document.activeVersion.fileSize,
+      mimeType: document.activeVersion.mimeType,
     });
   } catch (error) {
     console.error('Error generating download URL:', error);

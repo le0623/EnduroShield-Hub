@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireTenant } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { uploadToS3, validateFileType, getFileSizeLimit } from '@/lib/s3';
-import { processAndEmbedDocument } from '@/lib/rag/embeddings';
+import { processAndEmbedVersion } from '@/lib/rag/embeddings';
 import { loadFileText, loadPDFText, loadDOCXText } from '@/lib/utils/fileLoader';
 
 // DOCX and DOC MIME types for auto-approval processing
@@ -102,35 +102,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Save document to database
-    let document = await prisma.document.create({
-      data: {
-        name: name.trim(),
-        originalName: file.name,
-        description: description?.trim() || null,
-        fileUrl: uploadResult.url,
-        fileKey: uploadResult.key,
-        fileSize: uploadResult.size,
-        mimeType: uploadResult.mimeType,
-        submittedBy: user.id,
-        tenantId: tenant.id,
-        accessTags: {
-          connect: accessTagIdsArray.map(tagId => ({ id: tagId })),
-        },
-      },
-      include: {
-        submittedByUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+    // Create document and first version in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the document first
+      const document = await tx.document.create({
+        data: {
+          name: name.trim(),
+          description: description?.trim() || null,
+          submittedBy: user.id,
+          tenantId: tenant.id,
+          currentVersion: 1,
+          accessTags: {
+            connect: accessTagIdsArray.map(tagId => ({ id: tagId })),
           },
         },
-      },
+      });
+
+      // Create the first version
+      const version = await tx.documentVersion.create({
+        data: {
+          documentId: document.id,
+          versionNumber: 1,
+          originalName: file.name,
+          fileUrl: uploadResult.url,
+          fileKey: uploadResult.key,
+          fileSize: uploadResult.size,
+          mimeType: uploadResult.mimeType,
+          uploadedBy: user.id,
+          status: 'PENDING',
+        },
+      });
+
+      return { document, version };
     });
 
-    // Auto-approve for admin uploads: process and embed the document
+    let { document, version } = result;
     let autoApproved = false;
+
+    // Auto-approve for admin uploads: process and embed the document
     try {
       console.log(`🔄 Auto-approving admin upload: ${document.name}`);
       
@@ -157,28 +166,28 @@ export async function POST(request: NextRequest) {
 
         console.log(`📝 Added metadata prefix (${metadataPrefix.length} chars) to document content`);
 
-        // Process and embed the document
-        await processAndEmbedDocument(document.id, textWithMetadata);
-        console.log(`✅ Document ${document.id} processed and embedded successfully`);
+        // Process and embed the version
+        await processAndEmbedVersion(version.id, textWithMetadata);
+        console.log(`✅ Version ${version.id} processed and embedded successfully`);
 
-        // Update document status to APPROVED
-        document = await prisma.document.update({
-          where: { id: document.id },
+        // Update version status to APPROVED and set as active version
+        version = await prisma.documentVersion.update({
+          where: { id: version.id },
           data: {
             status: 'APPROVED',
             approvedBy: user.id,
             approvedAt: new Date(),
           },
-          include: {
-            submittedByUser: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
+        });
+
+        // Set this version as the active version for the document
+        document = await prisma.document.update({
+          where: { id: document.id },
+          data: {
+            activeVersionId: version.id,
           },
         });
+
         autoApproved = true;
       } else {
         console.warn(`⚠️ No text content extracted from ${document.name}, leaving as PENDING`);
@@ -188,21 +197,43 @@ export async function POST(request: NextRequest) {
       // Document remains in PENDING status, admin can manually approve later
     }
 
+    // Fetch complete document with relations
+    const fullDocument = await prisma.document.findUnique({
+      where: { id: document.id },
+      include: {
+        submittedByUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        activeVersion: true,
+        versions: {
+          orderBy: { versionNumber: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    const latestVersion = fullDocument?.versions[0];
+
     return NextResponse.json({
       message: autoApproved 
         ? 'Document uploaded and automatically approved' 
         : 'Document uploaded successfully (pending manual approval)',
       document: {
-        id: document.id,
-        name: document.name,
-        originalName: document.originalName,
-        description: document.description,
-        fileUrl: document.fileUrl,
-        fileSize: document.fileSize,
-        mimeType: document.mimeType,
-        status: document.status,
-        submittedBy: document.submittedByUser,
-        createdAt: document.createdAt,
+        id: fullDocument?.id,
+        name: fullDocument?.name,
+        description: fullDocument?.description,
+        currentVersion: fullDocument?.currentVersion,
+        originalName: latestVersion?.originalName,
+        fileUrl: latestVersion?.fileUrl,
+        fileSize: latestVersion?.fileSize,
+        mimeType: latestVersion?.mimeType,
+        status: latestVersion?.status,
+        submittedBy: fullDocument?.submittedByUser,
+        createdAt: fullDocument?.createdAt,
         autoApproved,
       },
     });

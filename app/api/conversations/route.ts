@@ -60,7 +60,14 @@ export async function POST(request: NextRequest) {
     const approvedDocuments = await prisma.document.findMany({
       where: {
         tenantId: tenant.id,
-        status: 'APPROVED',
+        versions: {
+          some: {
+            status: 'APPROVED',
+            chunks: {
+              some: {},
+            },
+          },
+        },
       },
       take: 1,
     });

@@ -39,9 +39,9 @@ export async function retrieveRelevantChunks(
     const queryEmbedding = await generateEmbedding(query);
 
     // Build document filter with access control
+    // Note: status is now on DocumentVersion, not Document
     const documentWhere: any = {
       tenantId,
-      status: 'APPROVED',
     };
 
     // If userId is provided, filter by user tags (unless user is admin)
@@ -77,17 +77,33 @@ export async function retrieveRelevantChunks(
       }
     }
 
-    // Get all document chunks for approved documents in this tenant (with access control)
+    // Get all document chunks from ACTIVE versions of approved documents in this tenant
+    // Only chunks from the active version of each document are used for RAG
     const chunks = await prisma.documentChunk.findMany({
       where: {
-        document: documentWhere,
+        version: {
+          status: 'APPROVED',
+          document: {
+            ...documentWhere,
+            activeVersionId: { not: null }, // Must have an active version
+          },
+          // Only get chunks from the active version
+          activeForDocument: {
+            isNot: null,
+          },
+        },
       },
       include: {
-        document: {
+        version: {
           select: {
             id: true,
-            name: true,
             fileUrl: true,
+            document: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },
@@ -102,9 +118,9 @@ export async function retrieveRelevantChunks(
       const similarity = cosineSimilarity(queryEmbedding, chunk.embedding);
       return {
         content: chunk.content,
-        documentId: chunk.documentId,
-        documentName: chunk.document.name,
-        documentUrl: chunk.document.fileUrl,
+        documentId: chunk.version.document.id,
+        documentName: chunk.version.document.name,
+        documentUrl: chunk.version.fileUrl,
         chunkIndex: chunk.chunkIndex,
         similarity,
       };

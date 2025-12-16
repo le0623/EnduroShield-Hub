@@ -11,13 +11,13 @@ const WORD_MIME_TYPES = [
   'application/msword', // .doc
 ];
 
-// POST /api/documents/[documentId]/approve - Approve the latest pending version of a document
+// POST /api/documents/[documentId]/versions/[versionId]/approve - Approve a document version
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ documentId: string }> }
+  { params }: { params: Promise<{ documentId: string; versionId: string }> }
 ) {
   try {
-    const { documentId } = await params;
+    const { documentId, versionId } = await params;
     const { user, tenant } = await requireTenant(request);
 
     // Get user's role in this tenant
@@ -30,7 +30,7 @@ export async function POST(
 
     if (!userMembership || userMembership.role !== 'ADMIN') {
       return NextResponse.json(
-        { error: 'Only administrators can approve documents' },
+        { error: 'Only administrators can approve document versions' },
         { status: 403 }
       );
     }
@@ -41,13 +41,6 @@ export async function POST(
         id: documentId,
         tenantId: tenant.id,
       },
-      include: {
-        versions: {
-          where: { status: 'PENDING' },
-          orderBy: { versionNumber: 'desc' },
-          take: 1,
-        },
-      },
     });
 
     if (!document) {
@@ -57,12 +50,25 @@ export async function POST(
       );
     }
 
-    // Get the latest pending version
-    const pendingVersion = document.versions[0];
-    
-    if (!pendingVersion) {
+    // Get the version to approve
+    const version = await prisma.documentVersion.findFirst({
+      where: {
+        id: versionId,
+        documentId: documentId,
+      },
+    });
+
+    if (!version) {
       return NextResponse.json(
-        { error: 'No pending version found for this document' },
+        { error: 'Version not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check if version is already processed
+    if (version.status !== 'PENDING') {
+      return NextResponse.json(
+        { error: 'Version has already been processed' },
         { status: 400 }
       );
     }
@@ -72,22 +78,22 @@ export async function POST(
       // Load document text based on file type
       let text: string;
       
-      if (pendingVersion.mimeType === 'application/pdf') {
-        console.log(`📄 Processing PDF document: ${document.name} v${pendingVersion.versionNumber}`);
-        text = await loadPDFText(pendingVersion.fileUrl);
-      } else if (WORD_MIME_TYPES.includes(pendingVersion.mimeType)) {
-        console.log(`📝 Processing Word document: ${document.name} v${pendingVersion.versionNumber} (${pendingVersion.mimeType})`);
-        text = await loadDOCXText(pendingVersion.fileUrl);
+      if (version.mimeType === 'application/pdf') {
+        console.log(`📄 Processing PDF document version: ${document.name} v${version.versionNumber}`);
+        text = await loadPDFText(version.fileUrl);
+      } else if (WORD_MIME_TYPES.includes(version.mimeType)) {
+        console.log(`📝 Processing Word document version: ${document.name} v${version.versionNumber} (${version.mimeType})`);
+        text = await loadDOCXText(version.fileUrl);
       } else {
-        console.log(`📃 Processing text document: ${document.name} v${pendingVersion.versionNumber} (${pendingVersion.mimeType})`);
-        text = await loadFileText(pendingVersion.fileUrl, pendingVersion.mimeType);
+        console.log(`📃 Processing text document version: ${document.name} v${version.versionNumber} (${version.mimeType})`);
+        text = await loadFileText(version.fileUrl, version.mimeType);
       }
 
       if (!text || text.trim() === '') {
         throw new Error('No text content could be extracted from the document');
       }
 
-      console.log(`📊 Extracted ${text.length} characters from document`);
+      console.log(`📊 Extracted ${text.length} characters from version`);
 
       // Prepend document name and description for better semantic search
       const metadataPrefix = `Document Title: ${document.name}\n${document.description ? `Description: ${document.description}\n\n` : '\n'}`;
@@ -96,13 +102,13 @@ export async function POST(
       console.log(`📝 Added metadata prefix (${metadataPrefix.length} chars) to document content`);
 
       // Process and embed the version
-      await processAndEmbedVersion(pendingVersion.id, textWithMetadata);
-      console.log(`✅ Version ${pendingVersion.id} processed and embedded successfully`);
+      await processAndEmbedVersion(versionId, textWithMetadata);
+      console.log(`✅ Version ${versionId} processed and embedded successfully`);
     } catch (error) {
-      console.error('Error processing document for RAG:', error);
+      console.error('Error processing version for RAG:', error);
       return NextResponse.json(
         { 
-          error: 'Failed to process and embed document. Document was not approved.',
+          error: 'Failed to process and embed version. Version was not approved.',
           details: error instanceof Error ? error.message : 'Unknown error'
         },
         { status: 500 }
@@ -111,13 +117,20 @@ export async function POST(
 
     // Only approve version if processing and embedding succeeded
     const approvedVersion = await prisma.documentVersion.update({
-      where: { id: pendingVersion.id },
+      where: { id: versionId },
       data: {
         status: 'APPROVED',
         approvedBy: user.id,
         approvedAt: new Date(),
       },
       include: {
+        uploadedByUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
         approvedByUser: {
           select: {
             id: true,
@@ -128,28 +141,31 @@ export async function POST(
       },
     });
 
-    // Set this version as active
-    await prisma.document.update({
-      where: { id: documentId },
-      data: { activeVersionId: pendingVersion.id },
-    });
+    // If no active version exists, set this as the active version
+    if (!document.activeVersionId) {
+      await prisma.document.update({
+        where: { id: documentId },
+        data: { activeVersionId: versionId },
+      });
+    }
 
     return NextResponse.json({
-      message: 'Document approved successfully',
-      document: {
-        id: document.id,
-        name: document.name,
-        version: approvedVersion.versionNumber,
+      message: 'Version approved successfully',
+      version: {
+        id: approvedVersion.id,
+        versionNumber: approvedVersion.versionNumber,
         status: approvedVersion.status,
         approvedBy: approvedVersion.approvedByUser,
         approvedAt: approvedVersion.approvedAt,
       },
     });
   } catch (error) {
-    console.error('Error approving document:', error);
+    console.error('Error approving version:', error);
     return NextResponse.json(
-      { error: 'Failed to approve document' },
+      { error: 'Failed to approve version' },
       { status: 500 }
     );
   }
 }
+
+

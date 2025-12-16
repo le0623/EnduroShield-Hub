@@ -110,11 +110,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if tenant has approved documents
+    // Check if tenant has approved documents with embeddings
     const approvedDocumentsCount = await prisma.document.count({
       where: {
         tenantId: tenant.id,
-        status: 'APPROVED',
+        versions: {
+          some: {
+            status: 'APPROVED',
+            chunks: {
+              some: {},
+            },
+          },
+        },
       },
     });
 

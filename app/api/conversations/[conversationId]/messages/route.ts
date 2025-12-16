@@ -140,7 +140,14 @@ export async function POST(
     const approvedDocumentsCount = await prisma.document.count({
       where: {
         tenantId: tenant.id,
-        status: 'APPROVED',
+        versions: {
+          some: {
+            status: 'APPROVED',
+            chunks: {
+              some: {},
+            },
+          },
+        },
       },
     });
 

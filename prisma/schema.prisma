@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,107 +8,284 @@ datasource db {
 }
 
 model User {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  password        String? // For email/password authentication
-  name            String? // Full name
-  profileImageUrl String?   @map("profile_image_url")
-  emailVerified   DateTime? @map("email_verified")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  lastActive      DateTime  @default(now()) @map("last_active")
-
-  // User status
-  status UserStatus @default(ACTIVE)
-
-  // Multi-tenant relationship - users can belong to multiple tenants
-  tenants TenantMember[]
-
-  // Invitation relationship
-  invitationId String?         @unique @map("invitation_id")
-  invitation   UserInvitation? @relation(fields: [invitationId], references: [id])
-
-  // Document relationships
-  submittedDocuments Document[] @relation("DocumentSubmitter")
-  approvedDocuments  Document[] @relation("DocumentApprover")
-  rejectedDocuments  Document[] @relation("DocumentRejector")
-
-  // Conversation relationships
-  conversations Conversation[]
+  id                 String            @id @default(cuid())
+  email              String            @unique
+  password           String?
+  name               String?
+  profileImageUrl    String?           @map("profile_image_url")
+  emailVerified      DateTime?         @map("email_verified")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+  lastActive         DateTime          @default(now()) @map("last_active")
+  status             UserStatus        @default(ACTIVE)
+  invitationId       String?           @unique @map("invitation_id")
+  conversations      Conversation[]
+  approvedVersions   DocumentVersion[] @relation("VersionApprover")
+  rejectedVersions   DocumentVersion[] @relation("VersionRejector")
+  uploadedVersions   DocumentVersion[] @relation("VersionUploader")
+  submittedDocuments Document[]        @relation("DocumentSubmitter")
+  tenants            TenantMember[]
+  invitation         UserInvitation?   @relation(fields: [invitationId], references: [id])
 
   @@map("users")
 }
 
-// Tenant Member - User-Tenant relationship with role
-// role: ADMIN is for system administration (managing users, settings, etc.)
-// tags: Custom roles/permissions for document access control
 model TenantMember {
   id        String    @id @default(cuid())
   userId    String    @map("user_id")
   tenantId  String    @map("tenant_id")
-  role      UserRole? // Optional: Only ADMIN for system admin, null for regular users
+  role      UserRole?
   isOwner   Boolean   @default(false) @map("is_owner")
   joinedAt  DateTime  @default(now()) @map("joined_at")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  tags   Tag[]  // Access control tags assigned to this user (implicit many-to-many) - these are the custom roles
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags      Tag[]     @relation("TagToTenantMember")
 
   @@unique([userId, tenantId])
   @@map("tenant_members")
 }
 
 model Tenant {
-  id          String   @id @default(cuid())
-  name        String
-  subdomain   String?  @unique // Subdomain for tenant-specific routing
-  logoUrl     String?  @map("logo_url")
-  assistantId String?  @map("assistant_id") // OpenAI Assistant ID for knowledge base
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  // Billing - Token balance in dollars
-  balance     Float    @default(10.0) // Starting balance in $ (can add credits)
-  totalSpent  Float    @default(0) @map("total_spent") // Total spent all time in $
-
-  // Relationships
-  members       TenantMember[]
-  invitations   UserInvitation[]
-  documents     Document[]
-  conversations Conversation[]
+  id            String           @id @default(cuid())
+  name          String
+  subdomain     String?          @unique
+  logoUrl       String?          @map("logo_url")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  assistantId   String?          @map("assistant_id")
+  balance       Float            @default(10.0)
+  totalSpent    Float            @default(0) @map("total_spent")
   apiKeys       ApiKey[]
-  tags           Tag[] // Access control tags/departments
-  widget         Widget? // Widget configuration
-  tokenUsage    TokenUsage[] // Detailed token usage tracking
+  conversations Conversation[]
+  documents     Document[]
+  tags          Tag[]
+  members       TenantMember[]
+  tokenUsage    TokenUsage[]
+  invitations   UserInvitation[]
+  widget        Widget?
 
   @@map("tenants")
 }
 
-// User invitation model
 model UserInvitation {
   id        String           @id @default(cuid())
   email     String
-  role      UserRole?        // Optional: Only ADMIN for system admin, null for regular users
+  role      UserRole?
   status    InvitationStatus @default(PENDING)
   token     String           @unique
-  invitedBy String           @map("invited_by") // User ID who sent the invitation
+  invitedBy String           @map("invited_by")
   tenantId  String           @map("tenant_id")
-  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt DateTime         @default(now()) @map("created_at")
   updatedAt DateTime         @updatedAt @map("updated_at")
   expiresAt DateTime         @map("expires_at")
-  tagIds    String[]         @default([]) @map("tag_ids") // Array of tag IDs for custom roles
-
-  // Relationship to user when they accept the invitation
-  user User?
+  tagIds    String[]         @default([]) @map("tag_ids")
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User?
 
   @@unique([email, tenantId])
   @@map("user_invitations")
 }
 
-// Enums
+model Document {
+  id              String            @id @default(cuid())
+  name            String
+  description     String?
+  submittedBy     String            @map("submitted_by")
+  tenantId        String            @map("tenant_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  activeVersionId String?           @unique @map("active_version_id")
+  currentVersion  Int               @default(1) @map("current_version")
+  versions        DocumentVersion[]
+  activeVersion   DocumentVersion?  @relation("ActiveVersion", fields: [activeVersionId], references: [id])
+  submittedByUser User              @relation("DocumentSubmitter", fields: [submittedBy], references: [id])
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accessTags      Tag[]             @relation("DocumentToTag")
+
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id                String          @id @default(cuid())
+  documentId        String          @map("document_id")
+  versionNumber     Int             @map("version_number")
+  originalName      String          @map("original_name")
+  fileUrl           String          @map("file_url")
+  fileKey           String          @unique @map("file_key")
+  fileSize          Int             @map("file_size")
+  mimeType          String          @map("mime_type")
+  status            DocumentStatus  @default(PENDING)
+  uploadedBy        String          @map("uploaded_by")
+  approvedBy        String?         @map("approved_by")
+  rejectedBy        String?         @map("rejected_by")
+  rejectionReason   String?         @map("rejection_reason")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  approvedAt        DateTime?       @map("approved_at")
+  rejectedAt        DateTime?       @map("rejected_at")
+  changeNotes       String?         @map("change_notes")
+  chunks            DocumentChunk[]
+  approvedByUser    User?           @relation("VersionApprover", fields: [approvedBy], references: [id])
+  document          Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  rejectedByUser    User?           @relation("VersionRejector", fields: [rejectedBy], references: [id])
+  uploadedByUser    User            @relation("VersionUploader", fields: [uploadedBy], references: [id])
+  activeForDocument Document?       @relation("ActiveVersion")
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId])
+  @@map("document_versions")
+}
+
+model DocumentChunk {
+  id         String           @id @default(cuid())
+  content    String
+  chunkIndex Int              @map("chunk_index")
+  embedding  Float[]
+  metadata   String?
+  createdAt  DateTime         @default(now()) @map("created_at")
+  versionId  String?          @map("version_id")
+  version    DocumentVersion? @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId])
+  @@map("document_chunks")
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  title     String
+  userId    String    @map("user_id")
+  tenantId  String    @map("tenant_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  threadId  String?   @map("thread_id")
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@index([userId, tenantId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  conversationId String           @map("conversation_id")
+  role           MessageRole
+  content        String
+  createdAt      DateTime         @default(now()) @map("created_at")
+  feedback       MessageFeedback?
+  sources        Json?
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+model Widget {
+  id             String   @id @default(cuid())
+  tenantId       String   @unique @map("tenant_id")
+  enabled        Boolean  @default(true)
+  widgetId       String   @unique @map("widget_id")
+  primaryColor   String   @default("#3B82F6") @map("primary_color")
+  secondaryColor String   @default("#1E40AF") @map("secondary_color")
+  position       String   @default("bottom-right")
+  title          String   @default("AI Assistant")
+  welcomeMessage String   @default("Hello! How can I help you today?") @map("welcome_message")
+  placeholder    String   @default("Type your message...")
+  showBranding   Boolean  @default(true) @map("show_branding")
+  customCss      String?  @map("custom_css")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("widgets")
+}
+
+model ApiKey {
+  id             String        @id @default(cuid())
+  tenantId       String        @map("tenant_id")
+  name           String
+  keyHash        String        @unique @map("key_hash")
+  prefix         String
+  expirationDate DateTime?     @map("expiration_date")
+  isEnabled      Boolean       @default(true) @map("is_enabled")
+  dailyLimit     Float         @default(0) @map("daily_limit")
+  monthlyLimit   Float         @default(0) @map("monthly_limit")
+  lastUsedAt     DateTime?     @map("last_used_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  usage          ApiKeyUsage[]
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
+model ApiKeyUsage {
+  id           String   @id @default(cuid())
+  apiKeyId     String   @map("api_key_id")
+  date         DateTime @db.Date
+  cost         Float    @default(0)
+  requestCount Int      @default(0) @map("request_count")
+  createdAt    DateTime @default(now()) @map("created_at")
+  apiKey       ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@unique([apiKeyId, date])
+  @@index([apiKeyId, date])
+  @@map("api_key_usage")
+}
+
+model Tag {
+  id            String         @id @default(cuid())
+  tenantId      String         @map("tenant_id")
+  name          String
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  documents     Document[]     @relation("DocumentToTag")
+  tenantMembers TenantMember[] @relation("TagToTenantMember")
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("tags")
+}
+
+model TokenUsage {
+  id               String   @id @default(cuid())
+  tenantId         String   @map("tenant_id")
+  date             DateTime @db.Date
+  model            String
+  provider         String   @default("OpenAI")
+  promptTokens     Int      @default(0) @map("prompt_tokens")
+  completionTokens Int      @default(0) @map("completion_tokens")
+  totalTokens      Int      @default(0) @map("total_tokens")
+  cost             Float    @default(0)
+  requestCount     Int      @default(0) @map("request_count")
+  createdAt        DateTime @default(now()) @map("created_at")
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, date, model])
+  @@index([tenantId, date])
+  @@map("token_usage")
+}
+
+model BillingTransaction {
+  id          String            @id @default(cuid())
+  tenantId    String            @map("tenant_id")
+  type        TransactionType
+  amount      Float
+  description String?
+  status      TransactionStatus @default(COMPLETED)
+  reference   String?
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  @@unique([tenantId, reference])
+  @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@map("billing_transactions")
+}
+
 enum UserStatus {
   ACTIVE
   INACTIVE
@@ -119,7 +293,7 @@ enum UserStatus {
 }
 
 enum UserRole {
-  ADMIN // Only ADMIN role remains - for system administration. Custom roles are handled via tags.
+  ADMIN
 }
 
 enum InvitationStatus {
@@ -129,87 +303,10 @@ enum InvitationStatus {
   REVOKED
 }
 
-// Document management models
-model Document {
-  id              String         @id @default(cuid())
-  name            String
-  originalName    String         @map("original_name")
-  description     String?
-  fileUrl         String         @map("file_url") // S3 URL
-  fileKey         String         @unique @map("file_key") // S3 object key
-  fileSize        Int            @map("file_size") // File size in bytes
-  mimeType        String         @map("mime_type")
-  version         Int            @default(1)
-  status          DocumentStatus @default(PENDING)
-  submittedBy     String         @map("submitted_by") // User ID
-  approvedBy      String?        @map("approved_by") // User ID
-  rejectedBy      String?        @map("rejected_by") // User ID
-  rejectionReason String?        @map("rejection_reason")
-  tenantId        String         @map("tenant_id")
-  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  submittedByUser User           @relation("DocumentSubmitter", fields: [submittedBy], references: [id])
-  approvedByUser  User?          @relation("DocumentApprover", fields: [approvedBy], references: [id])
-  rejectedByUser  User?          @relation("DocumentRejector", fields: [rejectedBy], references: [id])
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
-  approvedAt      DateTime?      @map("approved_at")
-  rejectedAt      DateTime?      @map("rejected_at")
-  chunks          DocumentChunk[] // RAG chunks with embeddings
-  accessTags      Tag[]          // Access control tags (who can access this document) - implicit many-to-many
-
-  @@map("documents")
-}
-
-// Document chunks for RAG (Retrieval-Augmented Generation)
-model DocumentChunk {
-  id         String   @id @default(cuid())
-  documentId String   @map("document_id")
-  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  content    String   // Text content of the chunk
-  chunkIndex Int      @map("chunk_index") // Order of chunk in document
-  embedding  Float[]  // Vector embedding (1536 dimensions for text-embedding-3-small)
-  metadata   String?  // JSON metadata (e.g., page number, section)
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  @@index([documentId])
-  @@map("document_chunks")
-}
-
 enum DocumentStatus {
   PENDING
   APPROVED
   REJECTED
-}
-
-// Conversation and Message models for chat functionality
-model Conversation {
-  id        String    @id @default(cuid())
-  title     String // First message or auto-generated title
-  userId    String    @map("user_id")
-  tenantId  String    @map("tenant_id")
-  threadId String?   @map("thread_id") // OpenAI Thread ID for Assistant API
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  messages  Message[]
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-
-  @@index([userId, tenantId])
-  @@map("conversations")
-}
-
-model Message {
-  id             String          @id @default(cuid())
-  conversationId String          @map("conversation_id")
-  role           MessageRole     // USER or ASSISTANT
-  content        String
-  sources        Json?           // Source documents for assistant messages [{documentId, documentName}]
-  feedback       MessageFeedback? // Feedback for assistant messages
-  conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  createdAt      DateTime        @default(now()) @map("created_at")
-
-  @@index([conversationId])
-  @@map("messages")
 }
 
 enum MessageRole {
@@ -222,127 +319,11 @@ enum MessageFeedback {
   NEGATIVE
 }
 
-// Widget configuration for embeddable AI assistant
-model Widget {
-  id              String   @id @default(cuid())
-  tenantId        String   @unique @map("tenant_id")
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  enabled         Boolean  @default(true)
-  widgetId        String   @unique @map("widget_id") // Public widget ID for embedding
-  primaryColor    String   @default("#3B82F6") @map("primary_color")
-  secondaryColor  String   @default("#1E40AF") @map("secondary_color")
-  position        String   @default("bottom-right") // bottom-right, bottom-left, top-right, top-left
-  title           String   @default("AI Assistant") // Widget title/header
-  welcomeMessage  String   @default("Hello! How can I help you today?") @map("welcome_message")
-  placeholder     String   @default("Type your message...") // Input placeholder
-  showBranding    Boolean  @default(true) @map("show_branding")
-  customCss       String?  @map("custom_css") // Custom CSS for advanced styling
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  @@map("widgets")
-}
-
-// API Key management models
-model ApiKey {
-  id            String    @id @default(cuid())
-  tenantId      String    @map("tenant_id")
-  name          String    // User-friendly name for the API key
-  keyHash       String    @unique @map("key_hash") // Hashed API key (never store plain text)
-  prefix        String    // First 8 characters of the key for display (e.g., "eb_1234...")
-  expirationDate DateTime? @map("expiration_date") // null means never expires
-  isEnabled     Boolean   @default(true) @map("is_enabled")
-  dailyLimit    Float     @default(0) @map("daily_limit") // Daily usage limit in $
-  monthlyLimit  Float     @default(0) @map("monthly_limit") // Monthly usage limit in $
-  lastUsedAt    DateTime? @map("last_used_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-  
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  usage         ApiKeyUsage[]
-
-  @@index([tenantId])
-  @@index([keyHash])
-  @@map("api_keys")
-}
-
-model ApiKeyUsage {
-  id            String   @id @default(cuid())
-  apiKeyId      String   @map("api_key_id")
-  date          DateTime @db.Date // Date for daily/monthly tracking
-  cost          Float    @default(0) // Cost in $ for this usage
-  requestCount  Int      @default(0) @map("request_count")
-  createdAt     DateTime @default(now()) @map("created_at")
-  
-  apiKey        ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
-
-  @@unique([apiKeyId, date])
-  @@index([apiKeyId, date])
-  @@map("api_key_usage")
-}
-
-// Tag model for access control (departments/access groups)
-// Single tag list table - tenant admin manages tags
-// Tags are assigned to users (TenantMember) and documents (Document) via implicit many-to-many
-model Tag {
-  id        String   @id @default(cuid())
-  tenantId  String   @map("tenant_id")
-  name      String   // Tag name (e.g., "Staff", "Leadership Team")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  tenantMembers TenantMember[] // Users with this tag (implicit many-to-many)
-  documents     Document[]     // Documents accessible with this tag (implicit many-to-many)
-
-  @@unique([tenantId, name])
-  @@index([tenantId])
-  @@map("tags")
-}
-
-// Token usage tracking for billing
-model TokenUsage {
-  id              String   @id @default(cuid())
-  tenantId        String   @map("tenant_id")
-  date            DateTime @db.Date // Date for daily aggregation
-  model           String   // Model used (e.g., "gpt-4o-mini", "text-embedding-3-small")
-  provider        String   @default("OpenAI") // AI Provider
-  promptTokens    Int      @default(0) @map("prompt_tokens")
-  completionTokens Int     @default(0) @map("completion_tokens")
-  totalTokens     Int      @default(0) @map("total_tokens")
-  cost            Float    @default(0) // Cost in $ for this usage
-  requestCount    Int      @default(0) @map("request_count")
-  createdAt       DateTime @default(now()) @map("created_at")
-
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@unique([tenantId, date, model])
-  @@index([tenantId, date])
-  @@map("token_usage")
-}
-
-// Billing transactions (top-ups, charges, refunds)
-model BillingTransaction {
-  id          String   @id @default(cuid())
-  tenantId    String   @map("tenant_id")
-  type        TransactionType
-  amount      Float    // Amount in $
-  description String?
-  status      TransactionStatus @default(COMPLETED)
-  reference   String?  // External reference (e.g., Stripe session ID)
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  @@unique([tenantId, reference]) // Prevent duplicate transactions per tenant
-  @@index([tenantId])
-  @@index([tenantId, createdAt])
-  @@map("billing_transactions")
-}
-
 enum TransactionType {
-  TOP_UP      // Adding credits
-  CHARGE      // Usage charge
-  REFUND      // Refund
-  ADJUSTMENT  // Manual adjustment
+  TOP_UP
+  CHARGE
+  REFUND
+  ADJUSTMENT
 }
 
 enum TransactionStatus {

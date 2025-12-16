@@ -27,18 +27,33 @@ export async function GET(
             profileImageUrl: true,
           },
         },
-        approvedByUser: {
+        activeVersion: {
           select: {
             id: true,
-            name: true,
-            email: true,
-          },
-        },
-        rejectedByUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+            versionNumber: true,
+            originalName: true,
+            fileUrl: true,
+            fileKey: true,
+            fileSize: true,
+            mimeType: true,
+            status: true,
+            approvedAt: true,
+            rejectedAt: true,
+            rejectionReason: true,
+            approvedByUser: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+            rejectedByUser: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
           },
         },
         accessTags: {
@@ -70,26 +85,26 @@ export async function GET(
       document: {
         id: document.id,
         name: document.name,
-        originalName: document.originalName,
         description: document.description,
         accessTags: document.accessTags.map(tag => ({
           id: tag.id,
           name: tag.name,
         })),
-        fileUrl: document.fileUrl,
-        fileKey: document.fileKey,
-        fileSize: document.fileSize,
-        mimeType: document.mimeType,
-        version: document.version,
-        status: document.status,
+        originalName: document.activeVersion?.originalName,
+        fileUrl: document.activeVersion?.fileUrl,
+        fileKey: document.activeVersion?.fileKey,
+        fileSize: document.activeVersion?.fileSize,
+        mimeType: document.activeVersion?.mimeType,
+        version: document.activeVersion?.versionNumber,
+        status: document.activeVersion?.status,
         submittedBy: document.submittedByUser,
-        approvedBy: document.approvedByUser,
-        rejectedBy: document.rejectedByUser,
-        rejectionReason: document.rejectionReason,
+        approvedBy: document.activeVersion?.approvedByUser,
+        rejectedBy: document.activeVersion?.rejectedByUser,
+        rejectionReason: document.activeVersion?.rejectionReason,
         createdAt: document.createdAt,
         updatedAt: document.updatedAt,
-        approvedAt: document.approvedAt,
-        rejectedAt: document.rejectedAt,
+        approvedAt: document.activeVersion?.approvedAt,
+        rejectedAt: document.activeVersion?.rejectedAt,
       },
     });
   } catch (error) {
@@ -160,18 +175,33 @@ export async function PUT(
             profileImageUrl: true,
           },
         },
-        approvedByUser: {
+        activeVersion: {
           select: {
             id: true,
-            name: true,
-            email: true,
-          },
-        },
-        rejectedByUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+            versionNumber: true,
+            originalName: true,
+            fileUrl: true,
+            fileKey: true,
+            fileSize: true,
+            mimeType: true,
+            status: true,
+            approvedAt: true,
+            rejectedAt: true,
+            rejectionReason: true,
+            approvedByUser: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+            rejectedByUser: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
           },
         },
         accessTags: {
@@ -188,26 +218,26 @@ export async function PUT(
       document: {
         id: updatedDocument.id,
         name: updatedDocument.name,
-        originalName: updatedDocument.originalName,
         description: updatedDocument.description,
         accessTags: updatedDocument.accessTags.map(tag => ({
           id: tag.id,
           name: tag.name,
         })),
-        fileUrl: updatedDocument.fileUrl,
-        fileKey: updatedDocument.fileKey,
-        fileSize: updatedDocument.fileSize,
-        mimeType: updatedDocument.mimeType,
-        version: updatedDocument.version,
-        status: updatedDocument.status,
+        originalName: updatedDocument.activeVersion?.originalName,
+        fileUrl: updatedDocument.activeVersion?.fileUrl,
+        fileKey: updatedDocument.activeVersion?.fileKey,
+        fileSize: updatedDocument.activeVersion?.fileSize,
+        mimeType: updatedDocument.activeVersion?.mimeType,
+        version: updatedDocument.activeVersion?.versionNumber,
+        status: updatedDocument.activeVersion?.status,
         submittedBy: updatedDocument.submittedByUser,
-        approvedBy: updatedDocument.approvedByUser,
-        rejectedBy: updatedDocument.rejectedByUser,
-        rejectionReason: updatedDocument.rejectionReason,
+        approvedBy: updatedDocument.activeVersion?.approvedByUser,
+        rejectedBy: updatedDocument.activeVersion?.rejectedByUser,
+        rejectionReason: updatedDocument.activeVersion?.rejectionReason,
         createdAt: updatedDocument.createdAt,
         updatedAt: updatedDocument.updatedAt,
-        approvedAt: updatedDocument.approvedAt,
-        rejectedAt: updatedDocument.rejectedAt,
+        approvedAt: updatedDocument.activeVersion?.approvedAt,
+        rejectedAt: updatedDocument.activeVersion?.rejectedAt,
       },
     });
   } catch (error) {
@@ -234,6 +264,13 @@ export async function DELETE(
         id: documentId,
         tenantId: tenant.id,
       },
+      include: {
+        versions: {
+          select: {
+            fileKey: true,
+          },
+        },
+      },
     });
 
     if (!document) {
@@ -259,8 +296,12 @@ export async function DELETE(
       );
     }
 
-    // Delete from S3
-    await deleteFromS3(document.fileKey);
+    // Delete all versions from S3
+    for (const version of document.versions) {
+      if (version.fileKey) {
+        await deleteFromS3(version.fileKey);
+      }
+    }
 
     // Delete from database
     await prisma.document.delete({

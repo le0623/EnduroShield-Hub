@@ -42,6 +42,13 @@ export async function POST(
         id: documentId,
         tenantId: tenant.id,
       },
+      include: {
+        versions: {
+          where: { status: 'PENDING' },
+          orderBy: { versionNumber: 'desc' },
+          take: 1,
+        },
+      },
     });
 
     if (!document) {
@@ -51,17 +58,19 @@ export async function POST(
       );
     }
 
-    // Check if document is already processed
-    if (document.status !== 'PENDING') {
+    // Get the latest pending version
+    const pendingVersion = document.versions[0];
+    
+    if (!pendingVersion) {
       return NextResponse.json(
-        { error: 'Document has already been processed' },
+        { error: 'No pending version found for this document' },
         { status: 400 }
       );
     }
 
-    // Reject document
-    const rejectedDocument = await prisma.document.update({
-      where: { id: documentId },
+    // Reject version
+    const rejectedVersion = await prisma.documentVersion.update({
+      where: { id: pendingVersion.id },
       data: {
         status: 'REJECTED',
         rejectedBy: user.id,
@@ -69,14 +78,6 @@ export async function POST(
         rejectedAt: new Date(),
       },
       include: {
-        submittedByUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            profileImageUrl: true,
-          },
-        },
         rejectedByUser: {
           select: {
             id: true,
@@ -90,12 +91,13 @@ export async function POST(
     return NextResponse.json({
       message: 'Document rejected successfully',
       document: {
-        id: rejectedDocument.id,
-        name: rejectedDocument.name,
-        status: rejectedDocument.status,
-        rejectedBy: rejectedDocument.rejectedByUser,
-        rejectionReason: rejectedDocument.rejectionReason,
-        rejectedAt: rejectedDocument.rejectedAt,
+        id: document.id,
+        name: document.name,
+        version: rejectedVersion.versionNumber,
+        status: rejectedVersion.status,
+        rejectedBy: rejectedVersion.rejectedByUser,
+        rejectionReason: rejectedVersion.rejectionReason,
+        rejectedAt: rejectedVersion.rejectedAt,
       },
     });
   } catch (error) {

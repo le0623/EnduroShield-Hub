@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { formatFileSize } from "@/lib/s3";
 import {
@@ -15,22 +15,50 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Upload, History, Check, Clock, X as XIcon } from "lucide-react";
 
 interface AccessTag {
   id: string;
   name: string;
 }
 
+interface Version {
+  id: string;
+  versionNumber: number;
+  originalName: string;
+  fileUrl: string;
+  fileSize: number;
+  mimeType: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  changeNotes?: string;
+  uploadedBy: {
+    id: string;
+    name?: string;
+    email: string;
+  };
+  approvedBy?: {
+    id: string;
+    name?: string;
+    email: string;
+  };
+  createdAt: string;
+  approvedAt?: string;
+  isActive: boolean;
+}
+
 interface Document {
   id: string;
   name: string;
-  originalName: string;
   description?: string;
   accessTags: AccessTag[];
+  originalName: string;
   fileUrl: string;
   fileSize: number;
   mimeType: string;
   version: number;
+  latestVersionNumber: number;
+  activeVersionNumber: number | null;
+  hasActiveVersion: boolean;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   submittedBy: {
     id: string;
@@ -54,7 +82,7 @@ interface Stats {
   rejected: number;
 }
 
-export default function Document() {
+export default function DocumentPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, approved: 0, pending: 0, rejected: 0 });
   const [isLoading, setIsLoading] = useState(true);
@@ -73,6 +101,16 @@ export default function Document() {
   const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<Document | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  
+  // Version management state
+  const [versionDialogDoc, setVersionDialogDoc] = useState<Document | null>(null);
+  const [versions, setVersions] = useState<Version[]>([]);
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+  const [isUploadingVersion, setIsUploadingVersion] = useState(false);
+  const [newVersionFile, setNewVersionFile] = useState<File | null>(null);
+  const [changeNotes, setChangeNotes] = useState("");
+  const [versionError, setVersionError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchDocuments();
@@ -83,6 +121,12 @@ export default function Document() {
       fetchTags();
     }
   }, [isEditDialogOpen]);
+
+  useEffect(() => {
+    if (versionDialogDoc) {
+      fetchVersions(versionDialogDoc.id);
+    }
+  }, [versionDialogDoc]);
 
   const fetchTags = async () => {
     try {
@@ -124,6 +168,24 @@ export default function Document() {
       setError('An error occurred');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchVersions = async (documentId: string) => {
+    try {
+      setIsLoadingVersions(true);
+      setVersionError("");
+      const response = await fetch(`/api/documents/${documentId}/versions`);
+      if (response.ok) {
+        const data = await response.json();
+        setVersions(data.versions || []);
+      } else {
+        setVersionError("Failed to load versions");
+      }
+    } catch (err) {
+      setVersionError("An error occurred loading versions");
+    } finally {
+      setIsLoadingVersions(false);
     }
   };
 
@@ -206,8 +268,9 @@ export default function Document() {
       setEditingDocument(null);
       setEditError("");
       alert("Document updated successfully!");
-    } catch (err: any) {
-      setEditError(err.message || "Failed to update document");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to update document";
+      setEditError(errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -234,8 +297,9 @@ export default function Document() {
       setDeleteConfirmDoc(null);
       setDeleteError("");
       alert("Document deleted successfully!");
-    } catch (err: any) {
-      setDeleteError(err.message || "Failed to delete document");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to delete document";
+      setDeleteError(errorMessage);
     } finally {
       setIsDeleting(false);
     }
@@ -247,6 +311,105 @@ export default function Document() {
         ? prev.filter(id => id !== tagId)
         : [...prev, tagId]
     );
+  };
+
+  // Version management functions
+  const handleVersionDialog = (doc: Document) => {
+    setVersionDialogDoc(doc);
+    setNewVersionFile(null);
+    setChangeNotes("");
+    setVersionError("");
+  };
+
+  const handleUploadNewVersion = async () => {
+    if (!versionDialogDoc || !newVersionFile) {
+      setVersionError("Please select a file");
+      return;
+    }
+
+    setIsUploadingVersion(true);
+    setVersionError("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", newVersionFile);
+      if (changeNotes.trim()) {
+        formData.append("changeNotes", changeNotes.trim());
+      }
+
+      const response = await fetch(`/api/documents/${versionDialogDoc.id}/versions`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to upload new version");
+      }
+
+      // Refresh versions and documents
+      await fetchVersions(versionDialogDoc.id);
+      await fetchDocuments();
+      setNewVersionFile(null);
+      setChangeNotes("");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      alert("New version uploaded successfully!");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to upload version";
+      setVersionError(errorMessage);
+    } finally {
+      setIsUploadingVersion(false);
+    }
+  };
+
+  const handleActivateVersion = async (versionId: string) => {
+    if (!versionDialogDoc) return;
+
+    try {
+      const response = await fetch(
+        `/api/documents/${versionDialogDoc.id}/versions/${versionId}/activate`,
+        { method: "POST" }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to activate version");
+      }
+
+      // Refresh versions and documents
+      await fetchVersions(versionDialogDoc.id);
+      await fetchDocuments();
+      alert("Version activated successfully!");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to activate version";
+      setVersionError(errorMessage);
+    }
+  };
+
+  const handleApproveVersion = async (versionId: string) => {
+    if (!versionDialogDoc) return;
+
+    try {
+      const response = await fetch(
+        `/api/documents/${versionDialogDoc.id}/versions/${versionId}/approve`,
+        { method: "POST" }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to approve version");
+      }
+
+      // Refresh versions and documents
+      await fetchVersions(versionDialogDoc.id);
+      await fetchDocuments();
+      alert("Version approved successfully!");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to approve version";
+      setVersionError(errorMessage);
+    }
   };
 
   return (
@@ -277,7 +440,7 @@ export default function Document() {
                       <h2 className="xl:text-4xl lg:text-3xl md:text-2xl text-xl font-extrabold leading-[1.2]">
                         Document Library
                       </h2>
-                      <p>Browse, search, and manage all your documents in one place</p>
+                      <p>Browse, search, and manage all your documents with version control</p>
                     </div>
                   </div>
                 </div>
@@ -457,10 +620,15 @@ export default function Document() {
                             </div>
                           </td>
                           <td className="text-nowrap">
-                            <div className="flex gap-1">
+                            <div className="flex gap-1 items-center">
                               <span className="px-3 py-0.5 text-xs font-semibold rounded-full border border-gray-200 bg-gray-50">
-                                V{doc.version}
+                                V{doc.latestVersionNumber}
                               </span>
+                              {doc.hasActiveVersion && doc.activeVersionNumber !== doc.latestVersionNumber && (
+                                <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700" title="Active version for AI search">
+                                  Active: V{doc.activeVersionNumber}
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td>
@@ -493,6 +661,13 @@ export default function Document() {
                                 title="View"
                               >
                                 <Image src="/images/icons/eye.svg" alt="View" width={16} height={16} />
+                              </button>
+                              <button
+                                className="btn btn-primary-light !size-8 !p-0 !rounded-full !flex justify-center items-center"
+                                onClick={() => handleVersionDialog(doc)}
+                                title="Version History"
+                              >
+                                <History className="w-4 h-4" />
                               </button>
                               {doc.status === 'APPROVED' && (
                                 <>
@@ -631,7 +806,7 @@ export default function Document() {
           <DialogHeader>
             <DialogTitle>Delete Document</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{deleteConfirmDoc?.name}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{deleteConfirmDoc?.name}&quot;? This action cannot be undone and will delete all versions.
             </DialogDescription>
           </DialogHeader>
 
@@ -658,6 +833,164 @@ export default function Document() {
               disabled={isDeleting}
             >
               {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Version Management Dialog */}
+      <Dialog open={!!versionDialogDoc} onOpenChange={(open) => !open && setVersionDialogDoc(null)}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Version History - {versionDialogDoc?.name}</DialogTitle>
+            <DialogDescription>
+              Manage document versions. Upload new versions or switch between existing ones.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-6 py-4">
+            {versionError && (
+              <div className="rounded-md bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm">
+                {versionError}
+              </div>
+            )}
+
+            {/* Upload New Version Section */}
+            <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+              <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                Upload New Version
+              </h4>
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="newVersionFile">Select File</Label>
+                  <Input
+                    ref={fileInputRef}
+                    id="newVersionFile"
+                    type="file"
+                    onChange={(e) => setNewVersionFile(e.target.files?.[0] || null)}
+                    disabled={isUploadingVersion}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="changeNotes">Change Notes (optional)</Label>
+                  <textarea
+                    id="changeNotes"
+                    value={changeNotes}
+                    onChange={(e) => setChangeNotes(e.target.value)}
+                    disabled={isUploadingVersion}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary mt-1"
+                    rows={2}
+                    placeholder="Describe what changed in this version..."
+                  />
+                </div>
+                <Button
+                  onClick={handleUploadNewVersion}
+                  disabled={isUploadingVersion || !newVersionFile}
+                  className="w-full"
+                >
+                  {isUploadingVersion ? "Uploading..." : "Upload New Version"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Version List */}
+            <div>
+              <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                <History className="w-4 h-4" />
+                All Versions
+              </h4>
+              {isLoadingVersions ? (
+                <div className="flex justify-center py-6">
+                  <div className="w-6 h-6 border-2 border-gray-200 border-t-primary rounded-full animate-spin"></div>
+                </div>
+              ) : versions.length === 0 ? (
+                <div className="text-center py-6 text-gray-500">No versions found</div>
+              ) : (
+                <div className="space-y-3">
+                  {versions.map((version) => (
+                    <div
+                      key={version.id}
+                      className={`border rounded-lg p-4 ${version.isActive ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold">Version {version.versionNumber}</span>
+                            {version.isActive && (
+                              <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-500 text-white">
+                                Active
+                              </span>
+                            )}
+                            {version.status === 'APPROVED' && (
+                              <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-700 flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Approved
+                              </span>
+                            )}
+                            {version.status === 'PENDING' && (
+                              <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-700 flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> Pending
+                              </span>
+                            )}
+                            {version.status === 'REJECTED' && (
+                              <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-700 flex items-center gap-1">
+                                <XIcon className="w-3 h-3" /> Rejected
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-600 truncate mt-1">
+                            {version.originalName} ({formatFileSize(version.fileSize)})
+                          </p>
+                          {version.changeNotes && (
+                            <p className="text-sm text-gray-500 mt-1 italic">
+                              &quot;{version.changeNotes}&quot;
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-400 mt-1">
+                            Uploaded by {version.uploadedBy.name || version.uploadedBy.email} on {formatDate(version.createdAt)}
+                          </p>
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(version.fileUrl, '_blank')}
+                          >
+                            View
+                          </Button>
+                          {version.status === 'PENDING' && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleApproveVersion(version.id)}
+                            >
+                              Approve
+                            </Button>
+                          )}
+                          {version.status === 'APPROVED' && !version.isActive && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleActivateVersion(version.id)}
+                            >
+                              Set Active
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setVersionDialogDoc(null)}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

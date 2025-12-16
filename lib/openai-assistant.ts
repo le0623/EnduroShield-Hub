@@ -52,7 +52,20 @@ export async function createOrUpdateTenantAssistant(tenantId: string): Promise<s
       include: {
         documents: {
           where: {
-            status: 'APPROVED',
+            versions: {
+              some: {
+                status: 'APPROVED',
+              },
+            },
+            activeVersionId: { not: null },
+          },
+          include: {
+            activeVersion: {
+              select: {
+                fileUrl: true,
+                originalName: true,
+              },
+            },
           },
         },
       },
@@ -63,8 +76,8 @@ export async function createOrUpdateTenantAssistant(tenantId: string): Promise<s
       return null;
     }
 
-    // Get all approved documents
-    const approvedDocuments = tenant.documents;
+    // Get all approved documents with active versions
+    const approvedDocuments = tenant.documents.filter(doc => doc.activeVersion);
 
     if (approvedDocuments.length === 0) {
       // If no approved documents and assistant exists, delete it
@@ -86,9 +99,11 @@ export async function createOrUpdateTenantAssistant(tenantId: string): Promise<s
     // Upload all approved documents to OpenAI
     const fileIds: string[] = [];
     for (const doc of approvedDocuments) {
-      const fileId = await uploadDocumentToOpenAI(doc.fileUrl, doc.originalName);
-      if (fileId) {
-        fileIds.push(fileId);
+      if (doc.activeVersion) {
+        const fileId = await uploadDocumentToOpenAI(doc.activeVersion.fileUrl, doc.activeVersion.originalName);
+        if (fileId) {
+          fileIds.push(fileId);
+        }
       }
     }
 

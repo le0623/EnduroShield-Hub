@@ -61,22 +61,22 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
 }
 
 /**
- * Store document chunks with embeddings in the database
+ * Store version chunks with embeddings in the database
  */
-export async function storeDocumentChunks(
-  documentId: string,
-  chunks: Array<{ text: string; index: number; metadata?: Record<string, any> }>,
+export async function storeVersionChunks(
+  versionId: string,
+  chunks: Array<{ text: string; index: number; metadata?: Record<string, unknown> }>,
   embeddings: number[][]
 ): Promise<void> {
   try {
-    // Delete existing chunks for this document (in case of re-processing)
+    // Delete existing chunks for this version (in case of re-processing)
     await prisma.documentChunk.deleteMany({
-      where: { documentId },
+      where: { versionId },
     });
 
     // Store chunks with embeddings
     const chunkData = chunks.map((chunk, idx) => ({
-      documentId,
+      versionId,
       content: chunk.text,
       chunkIndex: chunk.index,
       embedding: embeddings[idx],
@@ -92,18 +92,18 @@ export async function storeDocumentChunks(
       });
     }
 
-    console.log(`✅ Stored ${chunkData.length} chunks for document ${documentId}`);
+    console.log(`✅ Stored ${chunkData.length} chunks for version ${versionId}`);
   } catch (error) {
-    console.error('Error storing document chunks:', error);
+    console.error('Error storing version chunks:', error);
     throw error;
   }
 }
 
 /**
- * Process and embed a document
+ * Process and embed a document version
  */
-export async function processAndEmbedDocument(
-  documentId: string,
+export async function processAndEmbedVersion(
+  versionId: string,
   text: string
 ): Promise<void> {
   try {
@@ -114,7 +114,7 @@ export async function processAndEmbedDocument(
     const chunks = splitTextByParagraphs(text, 1000, 200);
     
     if (chunks.length === 0) {
-      console.warn(`No chunks created for document ${documentId}`);
+      console.warn(`No chunks created for version ${versionId}`);
       return;
     }
 
@@ -123,11 +123,22 @@ export async function processAndEmbedDocument(
     const embeddings = await generateEmbeddings(texts);
 
     // Store chunks with embeddings
-    await storeDocumentChunks(documentId, chunks, embeddings);
+    await storeVersionChunks(versionId, chunks, embeddings);
   } catch (error) {
-    console.error('Error processing and embedding document:', error);
+    console.error('Error processing and embedding version:', error);
     throw error;
   }
 }
 
-
+/**
+ * @deprecated Use processAndEmbedVersion instead
+ * Legacy function for backward compatibility
+ */
+export async function processAndEmbedDocument(
+  documentId: string,
+  text: string
+): Promise<void> {
+  console.warn('processAndEmbedDocument is deprecated. Use processAndEmbedVersion instead.');
+  // This is a no-op now - documents should use versions
+  throw new Error('processAndEmbedDocument is deprecated. Use processAndEmbedVersion with a version ID.');
+}

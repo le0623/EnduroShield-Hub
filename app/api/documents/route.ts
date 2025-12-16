@@ -19,10 +19,15 @@ export async function GET(request: NextRequest) {
     const accessWhere = await getDocumentAccessWhereClause(user.id, tenant.id);
 
     // Build where clause combining access control with filters
-    const whereConditions: any[] = [accessWhere];
+    const whereConditions: unknown[] = [accessWhere];
 
+    // Filter by version status if specified
     if (status && ['PENDING', 'APPROVED', 'REJECTED'].includes(status)) {
-      whereConditions.push({ status });
+      whereConditions.push({
+        versions: {
+          some: { status },
+        },
+      });
     }
 
     if (search) {
@@ -53,24 +58,83 @@ export async function GET(request: NextRequest) {
               profileImageUrl: true,
             },
           },
-          approvedByUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          rejectedByUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
           accessTags: {
             select: {
               id: true,
               name: true,
+            },
+          },
+          activeVersion: {
+            select: {
+              id: true,
+              versionNumber: true,
+              originalName: true,
+              fileUrl: true,
+              fileSize: true,
+              mimeType: true,
+              status: true,
+              approvedAt: true,
+              rejectedAt: true,
+              rejectionReason: true,
+              uploadedByUser: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+              approvedByUser: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+              rejectedByUser: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+          versions: {
+            orderBy: { versionNumber: 'desc' },
+            take: 1, // Get latest version for display
+            select: {
+              id: true,
+              versionNumber: true,
+              originalName: true,
+              fileUrl: true,
+              fileSize: true,
+              mimeType: true,
+              status: true,
+              approvedAt: true,
+              rejectedAt: true,
+              rejectionReason: true,
+              createdAt: true,
+              uploadedByUser: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+              approvedByUser: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
+              rejectedByUser: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                },
+              },
             },
           },
         },
@@ -83,31 +147,43 @@ export async function GET(request: NextRequest) {
       prisma.document.count({ where }),
     ]);
 
-    // Format response
-    const formattedDocuments = documents.map(doc => ({
-      id: doc.id,
-      name: doc.name,
-      originalName: doc.originalName,
-      description: doc.description,
-      accessTags: doc.accessTags.map(tag => ({
-        id: tag.id,
-        name: tag.name,
-      })),
-      fileUrl: doc.fileUrl,
-      fileKey: doc.fileKey,
-      fileSize: doc.fileSize,
-      mimeType: doc.mimeType,
-      version: doc.version,
-      status: doc.status,
-      submittedBy: doc.submittedByUser,
-      approvedBy: doc.approvedByUser,
-      rejectedBy: doc.rejectedByUser,
-      rejectionReason: doc.rejectionReason,
-      createdAt: doc.createdAt,
-      updatedAt: doc.updatedAt,
-      approvedAt: doc.approvedAt,
-      rejectedAt: doc.rejectedAt,
-    }));
+    // Format response - use latest version data for display
+    const formattedDocuments = documents.map(doc => {
+      const latestVersion = doc.versions[0];
+      const activeVersion = doc.activeVersion;
+      
+      return {
+        id: doc.id,
+        name: doc.name,
+        description: doc.description,
+        accessTags: doc.accessTags.map(tag => ({
+          id: tag.id,
+          name: tag.name,
+        })),
+        // Use latest version info for display
+        originalName: latestVersion?.originalName || '',
+        fileUrl: latestVersion?.fileUrl || '',
+        fileSize: latestVersion?.fileSize || 0,
+        mimeType: latestVersion?.mimeType || '',
+        // Version info
+        version: doc.currentVersion,
+        latestVersionNumber: latestVersion?.versionNumber || 1,
+        activeVersionNumber: activeVersion?.versionNumber || null,
+        hasActiveVersion: !!activeVersion,
+        // Status from latest version
+        status: latestVersion?.status || 'PENDING',
+        // User info
+        submittedBy: doc.submittedByUser,
+        approvedBy: latestVersion?.approvedByUser || null,
+        rejectedBy: latestVersion?.rejectedByUser || null,
+        rejectionReason: latestVersion?.rejectionReason || null,
+        // Dates
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        approvedAt: latestVersion?.approvedAt || null,
+        rejectedAt: latestVersion?.rejectedAt || null,
+      };
+    });
 
     return NextResponse.json({
       documents: formattedDocuments,

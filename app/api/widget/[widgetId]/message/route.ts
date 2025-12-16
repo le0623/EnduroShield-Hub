@@ -104,7 +104,14 @@ export async function POST(
     const approvedDocumentsCount = await prisma.document.count({
       where: {
         tenantId: widget.tenantId,
-        status: 'APPROVED',
+        versions: {
+          some: {
+            status: 'APPROVED',
+            chunks: {
+              some: {},
+            },
+          },
+        },
       },
     });
 
