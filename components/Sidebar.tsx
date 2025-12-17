@@ -13,6 +13,7 @@ import KeyIcon from './icons/KeyIcon';
 import BillingIcon from './icons/BillingIcon';
 import UploadIcon from './icons/UploadIcon';
 import WidgetIcon from './icons/WidgetIcon';
+import BookIcon from './icons/BookIcon';
 import Link from 'next/link';
 
 interface SidebarProps {
@@ -27,7 +28,7 @@ const allNavItems = [
   { id: 'upload', label: 'Upload', icon: UploadIcon, active: false, adminOnly: false, nonAdminOnly: false },
   { id: 'documents', label: 'Documents', icon: DocumentIcon, active: false, adminOnly: false, nonAdminOnly: false },
   { id: 'approval', label: 'Document Approval', icon: ApprovalIcon, active: false, adminOnly: false, nonAdminOnly: false },
-  { id: 'search', label: 'AI-Powered Search', icon: LightningIcon, active: false, adminOnly: false, nonAdminOnly: true },
+  { id: 'search', label: 'Knowledge Base & AI', icon: LightningIcon, active: false, adminOnly: false, nonAdminOnly: true },
   { id: 'billing', label: 'Billing & Usage', icon: BillingIcon, active: false, adminOnly: false, nonAdminOnly: false },
   { id: 'integration', label: 'API Key', icon: KeyIcon, active: false, adminOnly: false, nonAdminOnly: false },
   { id: 'widget', label: 'Widget', icon: WidgetIcon, active: false, adminOnly: true, nonAdminOnly: false },
